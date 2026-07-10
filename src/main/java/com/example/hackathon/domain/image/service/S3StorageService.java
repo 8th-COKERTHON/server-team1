@@ -44,9 +44,9 @@ public class S3StorageService implements StorageService {
                             .build(),
                     RequestBody.fromBytes(image.getBytes())
             );
-            return "https://%s.s3.%s.amazonaws.com/%s".formatted(bucket, properties.region(), key);
+            return "https://%s.s3.%s.amazonaws.com/%s".formatted(bucket, properties.resolvedRegion(), key);
         } catch (IOException | RuntimeException exception) {
-            throw new BusinessException(ErrorCode.IMAGE_ERROR_500_UPLOAD_FAILED);
+            throw new BusinessException(ErrorCode.IMAGE_ERROR_500_UPLOAD_FAILED, exception);
         }
     }
 
@@ -67,7 +67,11 @@ public class S3StorageService implements StorageService {
         if (image.getSize() > MAX_IMAGE_SIZE) {
             throw new BusinessException(ErrorCode.IMAGE_ERROR_400_SIZE_EXCEEDED);
         }
-        String extension = ALLOWED_CONTENT_TYPES.get(image.getContentType());
+        String contentType = image.getContentType();
+        if (contentType == null) {
+            throw new BusinessException(ErrorCode.IMAGE_ERROR_400_INVALID_CONTENT_TYPE);
+        }
+        String extension = ALLOWED_CONTENT_TYPES.get(contentType);
         if (extension == null) {
             throw new BusinessException(ErrorCode.IMAGE_ERROR_400_INVALID_CONTENT_TYPE);
         }

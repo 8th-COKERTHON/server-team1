@@ -11,6 +11,12 @@ public record S3Properties(
         String region,
         S3 s3
 ) {
+    private static final String DEFAULT_REGION = "ap-northeast-2";
+
+    public String resolvedRegion() {
+        return region == null || region.isBlank() ? DEFAULT_REGION : region;
+    }
+
     public record S3(
             String bucket,
             String accessKey,

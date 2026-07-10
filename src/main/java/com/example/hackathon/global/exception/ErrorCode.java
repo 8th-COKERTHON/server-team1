@@ -47,6 +47,7 @@ public enum ErrorCode {
     MISSION_ERROR_400_ALREADY_CERTIFIED(HttpStatus.BAD_REQUEST, "이미 인증된 미션입니다. 사진 재등록 API를 이용해주세요."),
     MISSION_ERROR_400_CERTIFICATION_NOT_FOUND(HttpStatus.BAD_REQUEST, "재등록할 인증 사진이 없습니다."),
     MISSION_ERROR_400_DETOX_ALREADY_ENDED(HttpStatus.BAD_REQUEST, "디톡스 종료 후에는 인증 사진을 변경할 수 없습니다."),
+    MISSION_ERROR_400_NOT_CERTIFIED(HttpStatus.BAD_REQUEST, "미션 인증 완료 후 디톡스 진행 화면을 조회할 수 있습니다."),
     MISSION_ERROR_400_INVALID_TRANSITION(HttpStatus.BAD_REQUEST, "잘못된 상태 전이입니다.");
 
     private final HttpStatus status;
