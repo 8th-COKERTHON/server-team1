@@ -22,9 +22,9 @@ public record MissionTodayResponse(
     public static MissionTodayResponse from(UserMissionLog log) {
         return new MissionTodayResponse(
                 log.getId(),
-                log.getMission().getId(),
-                log.getMission().getTitle(),
-                log.getMission().getDifficulty(),
+                log.getDailyMission().getMission().getId(),
+                log.getDailyMission().getMission().getTitle(),
+                log.getDailyMission().getMission().getDifficulty(),
                 log.getTargetDate(),
                 log.getStatus(),
                 log.getAssignedAt(),
