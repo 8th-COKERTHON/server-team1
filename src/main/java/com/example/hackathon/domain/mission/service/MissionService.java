@@ -12,6 +12,7 @@ import com.example.hackathon.global.exception.BusinessException;
 import com.example.hackathon.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
@@ -62,8 +63,14 @@ public class MissionService {
                             .deadlineAt(deadlineDateTime)
                             .build();
 
-                    UserMissionLog savedLog = userMissionLogRepository.save(newLog);
-                    return MissionTodayResponse.from(savedLog);
+                    try {
+                        UserMissionLog savedLog = userMissionLogRepository.save(newLog);
+                        return MissionTodayResponse.from(savedLog);
+                    } catch (DataIntegrityViolationException e) {
+                        return userMissionLogRepository.findByUserIdAndTargetDate(user.getId(), todayDate)
+                                .map(MissionTodayResponse::from)
+                                .orElseThrow(() -> e);
+                    }
                 });
     }
 }

@@ -210,5 +210,45 @@ class MissionServiceTest {
                     .isInstanceOf(BusinessException.class)
                     .hasMessageContaining(ErrorCode.MISSION_ERROR_500_NO_MISSION_DATA.getMessage());
         }
+
+        @Test
+        @DisplayName("신규 미션 로그를 생성 및 저장할 때 DataIntegrityViolationException(동시 요청 등)이 발생하면 기존 미션 로그를 조회하여 반환한다.")
+        void handleDataIntegrityViolationException() {
+            // given
+            when(userRepository.findByDeviceId(deviceId)).thenReturn(Optional.of(user));
+            when(missionRepository.findFirstByOrderByIdAsc()).thenReturn(Optional.of(mission));
+
+            when(userMissionLogRepository.save(any(UserMissionLog.class)))
+                    .thenThrow(new org.springframework.dao.DataIntegrityViolationException("Duplicate key value"));
+
+            LocalDateTime assignedAt = LocalDateTime.of(today, detoxStart);
+            UserMissionLog existingLog = UserMissionLog.builder()
+                    .user(user)
+                    .mission(mission)
+                    .targetDate(today)
+                    .status(MissionStatus.PENDING)
+                    .assignedAt(assignedAt)
+                    .deadlineAt(assignedAt.plusMinutes(10))
+                    .build();
+            ReflectionTestUtils.setField(existingLog, "id", 999L);
+
+            // 첫 번째 호출 시 empty(), 두 번째 호출 시 existingLog 반환
+            when(userMissionLogRepository.findByUserIdAndTargetDate(user.getId(), today))
+                    .thenReturn(Optional.empty())
+                    .thenReturn(Optional.of(existingLog));
+
+            LocalDateTime now = LocalDateTime.of(today, detoxStart.plusMinutes(1));
+
+            // when
+            MissionTodayResponse response = missionService.getOrCreateTodayMission(deviceId, today, now);
+
+            // then
+            assertThat(response.missionLogId()).isEqualTo(999L);
+            assertThat(response.missionId()).isEqualTo(100L);
+            assertThat(response.title()).isEqualTo("물 한 잔 마시기");
+            assertThat(response.status()).isEqualTo(MissionStatus.PENDING);
+            verify(userMissionLogRepository, times(1)).save(any(UserMissionLog.class));
+            verify(userMissionLogRepository, times(2)).findByUserIdAndTargetDate(user.getId(), today);
+        }
     }
 }
