@@ -8,6 +8,7 @@ import com.example.hackathon.domain.user.service.UserService;
 
 import com.example.hackathon.global.response.ApiResponse;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
+@Tag(name = "User", description = "사용자 API")
 @RestController
 @RequestMapping("/api/users")
 @RequiredArgsConstructor
