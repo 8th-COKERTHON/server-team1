@@ -29,6 +29,9 @@ public enum ErrorCode {
 
     // 이미지
     IMAGE_ERROR_400_INVALID_CONTENT_TYPE(HttpStatus.BAD_REQUEST, "지원하지 않는 이미지 형식입니다."),
+    IMAGE_ERROR_400_EMPTY_FILE(HttpStatus.BAD_REQUEST, "이미지 파일이 비어 있습니다."),
+    IMAGE_ERROR_400_SIZE_EXCEEDED(HttpStatus.BAD_REQUEST, "이미지 파일은 10MB를 초과할 수 없습니다."),
+    IMAGE_ERROR_500_UPLOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "이미지 업로드에 실패했습니다."),
     IMAGE_ERROR_500_PRESIGNED_URL_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "이미지 업로드 URL 발급에 실패했습니다."),
 
     // 미션
@@ -41,6 +44,9 @@ public enum ErrorCode {
     MISSION_ERROR_400_DEADLINE_EXCEEDED(HttpStatus.BAD_REQUEST, "미션 제한 시간을 초과했습니다."),
     MISSION_ERROR_400_ALREADY_COMPLETED(HttpStatus.BAD_REQUEST, "이미 성공한 미션입니다."),
     MISSION_ERROR_400_ALREADY_FAILED(HttpStatus.BAD_REQUEST, "이미 실패한 미션입니다."),
+    MISSION_ERROR_400_ALREADY_CERTIFIED(HttpStatus.BAD_REQUEST, "이미 인증된 미션입니다. 사진 재등록 API를 이용해주세요."),
+    MISSION_ERROR_400_CERTIFICATION_NOT_FOUND(HttpStatus.BAD_REQUEST, "재등록할 인증 사진이 없습니다."),
+    MISSION_ERROR_400_DETOX_ALREADY_ENDED(HttpStatus.BAD_REQUEST, "디톡스 종료 후에는 인증 사진을 변경할 수 없습니다."),
     MISSION_ERROR_400_INVALID_TRANSITION(HttpStatus.BAD_REQUEST, "잘못된 상태 전이입니다.");
 
     private final HttpStatus status;
