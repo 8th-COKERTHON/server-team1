@@ -1,6 +1,9 @@
 package com.example.hackathon.domain.mission.service;
 
+import com.example.hackathon.domain.mission.dto.response.MissionConfirmResponse;
+import com.example.hackathon.domain.mission.dto.response.MissionPopupResponse;
 import com.example.hackathon.domain.mission.dto.response.MissionTodayResponse;
+import com.example.hackathon.domain.mission.dto.response.MissionTodayStatusResponse;
 import com.example.hackathon.domain.mission.entity.DailyMission;
 import com.example.hackathon.domain.mission.entity.Mission;
 import com.example.hackathon.domain.mission.entity.MissionStatus;
@@ -18,8 +21,11 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.*;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -34,9 +40,10 @@ public class MissionService {
     private final DailyMissionRepository dailyMissionRepository;
     private final UserMissionLogRepository userMissionLogRepository;
     private final DailyMissionTransactionService transactionService;
+    private final Clock clock;
 
     @Transactional
-    public MissionTodayResponse getOrCreateTodayMission(String deviceId, LocalDate todayDate, LocalDateTime nowTime) {
+    public MissionTodayResponse getOrCreateTodayMission(String deviceId, LocalDateTime nowTime) {
         // 1. 사용자 조회
         User user = userRepository.findByDeviceId(deviceId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_ERROR_404_NOT_FOUND));
@@ -46,36 +53,158 @@ public class MissionService {
             throw new BusinessException(ErrorCode.MISSION_ERROR_400_DETOX_TIME_NOT_SET);
         }
 
+        // 자정 넘김 고려한 targetDate 계산
+        LocalDate targetDate = calculateTargetDate(user, nowTime);
+
         // 3. 디톡스 시작 시각 이전인지 확인
-        LocalDateTime detoxStartDateTime = LocalDateTime.of(todayDate, user.getDetoxStartTime());
+        LocalDateTime detoxStartDateTime = LocalDateTime.of(targetDate, user.getDetoxStartTime());
         if (nowTime.isBefore(detoxStartDateTime)) {
             throw new BusinessException(ErrorCode.MISSION_ERROR_400_BEFORE_DETOX_START);
         }
 
         // 4. 오늘 날짜의 DailyMission 조회 및 생성 (없을 시 생성)
-        DailyMission dailyMission = getOrCreateDailyMission(todayDate);
+        DailyMission dailyMission = getOrCreateDailyMission(targetDate);
 
         // 5. 오늘 날짜의 USER_MISSION_LOG 조회 및 생성
-        return userMissionLogRepository.findByUserIdAndTargetDate(user.getId(), todayDate)
-                .map(MissionTodayResponse::from)
+        UserMissionLog log = userMissionLogRepository.findByUserIdAndTargetDate(user.getId(), targetDate)
                 .orElseGet(() -> {
                     LocalDateTime deadlineDateTime = detoxStartDateTime.plusMinutes(10);
 
                     UserMissionLog newLog = UserMissionLog.builder()
                             .user(user)
                             .dailyMission(dailyMission)
-                            .targetDate(todayDate)
+                            .targetDate(targetDate)
                             .status(MissionStatus.ASSIGNED)
                             .assignedAt(detoxStartDateTime)
                             .deadlineAt(deadlineDateTime)
                             .build();
 
-                    UserMissionLog savedLog = saveOrFetchExisting(
+                    return saveOrFetchExisting(
                             () -> transactionService.saveUserMissionLog(newLog),
-                            () -> userMissionLogRepository.findByUserIdAndTargetDate(user.getId(), todayDate)
+                            () -> userMissionLogRepository.findByUserIdAndTargetDate(user.getId(), targetDate)
                     );
-                    return MissionTodayResponse.from(savedLog);
                 });
+
+        // Lazy 실패 만료 처리 적용
+        log = checkAndExpireLog(log, nowTime);
+
+        return MissionTodayResponse.from(log);
+    }
+
+    @Transactional
+    public MissionTodayStatusResponse getTodayMissionStatus(String deviceId) {
+        LocalDateTime now = LocalDateTime.now(clock);
+        User user = userRepository.findByDeviceId(deviceId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_ERROR_404_NOT_FOUND));
+
+        if (user.getDetoxStartTime() == null || user.getDetoxEndTime() == null) {
+            throw new BusinessException(ErrorCode.MISSION_ERROR_400_DETOX_TIME_NOT_SET);
+        }
+
+        LocalDate targetDate = calculateTargetDate(user, now);
+
+        UserMissionLog log = userMissionLogRepository.findByUserIdAndTargetDate(user.getId(), targetDate)
+                .orElseGet(() -> {
+                    MissionTodayResponse todayResponse = getOrCreateTodayMission(deviceId, now);
+                    return userMissionLogRepository.findById(todayResponse.missionLogId())
+                            .orElseThrow(() -> new BusinessException(ErrorCode.MISSION_ERROR_404_NOT_FOUND));
+                });
+
+        // Lazy 만료 처리
+        log = checkAndExpireLog(log, now);
+
+        boolean expired = now.isAfter(log.getDeadlineAt());
+        long remainingSeconds = calculateRemainingSeconds(log, now);
+
+        // popupRequired 판단 조건
+        boolean popupRequired = isPopupRequired(log, now);
+
+        return MissionTodayStatusResponse.of(log, popupRequired, remainingSeconds, expired);
+    }
+
+    @Transactional
+    public MissionPopupResponse recordPopupShown(String deviceId) {
+        LocalDateTime now = LocalDateTime.now(clock);
+        User user = userRepository.findByDeviceId(deviceId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_ERROR_404_NOT_FOUND));
+
+        if (user.getDetoxStartTime() == null || user.getDetoxEndTime() == null) {
+            throw new BusinessException(ErrorCode.MISSION_ERROR_400_DETOX_TIME_NOT_SET);
+        }
+
+        LocalDate targetDate = calculateTargetDate(user, now);
+
+        UserMissionLog log = userMissionLogRepository.findByUserIdAndTargetDate(user.getId(), targetDate)
+                .orElseGet(() -> {
+                    MissionTodayResponse todayResponse = getOrCreateTodayMission(deviceId, now);
+                    return userMissionLogRepository.findById(todayResponse.missionLogId())
+                            .orElseThrow(() -> new BusinessException(ErrorCode.MISSION_ERROR_404_NOT_FOUND));
+                });
+
+        // Lazy 만료 처리
+        log = checkAndExpireLog(log, now);
+
+        // 예외 검증
+        if (now.isBefore(log.getAssignedAt())) {
+            throw new BusinessException(ErrorCode.MISSION_ERROR_400_BEFORE_DETOX_START);
+        }
+        if (log.getStatus() == MissionStatus.FAILED) {
+            throw new BusinessException(ErrorCode.MISSION_ERROR_400_ALREADY_FAILED);
+        }
+        if (log.getStatus() == MissionStatus.SUCCESS) {
+            throw new BusinessException(ErrorCode.MISSION_ERROR_400_ALREADY_COMPLETED);
+        }
+
+        // 팝업 최초 노출 처리
+        log.showPopup(now);
+        userMissionLogRepository.save(log);
+
+        long remainingSeconds = calculateRemainingSeconds(log, now);
+        boolean popupRequired = isPopupRequired(log, now);
+
+        return MissionPopupResponse.of(log, remainingSeconds, popupRequired);
+    }
+
+    @Transactional
+    public MissionConfirmResponse confirmMission(String deviceId) {
+        LocalDateTime now = LocalDateTime.now(clock);
+        User user = userRepository.findByDeviceId(deviceId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_ERROR_404_NOT_FOUND));
+
+        if (user.getDetoxStartTime() == null || user.getDetoxEndTime() == null) {
+            throw new BusinessException(ErrorCode.MISSION_ERROR_400_DETOX_TIME_NOT_SET);
+        }
+
+        LocalDate targetDate = calculateTargetDate(user, now);
+
+        UserMissionLog log = userMissionLogRepository.findByUserIdAndTargetDate(user.getId(), targetDate)
+                .orElseGet(() -> {
+                    MissionTodayResponse todayResponse = getOrCreateTodayMission(deviceId, now);
+                    return userMissionLogRepository.findById(todayResponse.missionLogId())
+                            .orElseThrow(() -> new BusinessException(ErrorCode.MISSION_ERROR_404_NOT_FOUND));
+                });
+
+        // Lazy 만료 처리
+        log = checkAndExpireLog(log, now);
+
+        // 예외 검증
+        if (now.isBefore(log.getAssignedAt())) {
+            throw new BusinessException(ErrorCode.MISSION_ERROR_400_BEFORE_DETOX_START);
+        }
+        if (log.getStatus() == MissionStatus.FAILED) {
+            throw new BusinessException(ErrorCode.MISSION_ERROR_400_ALREADY_FAILED);
+        }
+        if (log.getStatus() == MissionStatus.SUCCESS) {
+            throw new BusinessException(ErrorCode.MISSION_ERROR_400_ALREADY_COMPLETED);
+        }
+
+        // 상태 전환
+        log.updateStatus(MissionStatus.CONFIRMED);
+        userMissionLogRepository.save(log);
+
+        long remainingSeconds = calculateRemainingSeconds(log, now);
+
+        return MissionConfirmResponse.of(log, remainingSeconds);
     }
 
     private DailyMission getOrCreateDailyMission(LocalDate todayDate) {
@@ -120,7 +249,7 @@ public class MissionService {
 
         List<Mission> candidates;
         if (usedMissionIds.size() < m) {
-            // 현재 순환에서 아직 사용되지 않은 활성 미션들 중 선택
+            // 현재 순환에서 아직 사용되지 않은 미션들 중 선택
             candidates = activeMissions.stream()
                     .filter(mission -> !usedMissionIds.contains(mission.getId()))
                     .collect(Collectors.toList());
@@ -146,5 +275,37 @@ public class MissionService {
             return fetchOperation.get()
                     .orElseThrow(() -> e);
         }
+    }
+
+    private LocalDate calculateTargetDate(User user, LocalDateTime now) {
+        LocalTime startTime = user.getDetoxStartTime();
+        LocalDate today = now.toLocalDate();
+
+        LocalDateTime yesterdayStart = LocalDateTime.of(today.minusDays(1), startTime);
+        LocalDateTime yesterdayDeadline = yesterdayStart.plusMinutes(10);
+
+        if (now.isBefore(yesterdayDeadline)) {
+            return today.minusDays(1);
+        }
+        return today;
+    }
+
+    private UserMissionLog checkAndExpireLog(UserMissionLog log, LocalDateTime now) {
+        if (now.isAfter(log.getDeadlineAt()) && 
+            (log.getStatus() == MissionStatus.ASSIGNED || log.getStatus() == MissionStatus.CONFIRMED)) {
+            log.updateStatus(MissionStatus.FAILED);
+            userMissionLogRepository.save(log);
+        }
+        return log;
+    }
+
+    private long calculateRemainingSeconds(UserMissionLog log, LocalDateTime now) {
+        return Math.max(Duration.between(now, log.getDeadlineAt()).getSeconds(), 0);
+    }
+
+    private boolean isPopupRequired(UserMissionLog log, LocalDateTime now) {
+        return !now.isBefore(log.getAssignedAt())
+                && now.isBefore(log.getDeadlineAt())
+                && (log.getStatus() == MissionStatus.ASSIGNED || log.getStatus() == MissionStatus.CONFIRMED);
     }
 }
