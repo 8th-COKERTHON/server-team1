@@ -1,7 +1,8 @@
 package com.example.hackathon.domain.user.controller;
 
 import com.example.hackathon.domain.user.dto.DetoxTimeRequest;
-import com.example.hackathon.domain.user.dto.UserCreateRequest;
+import com.example.hackathon.domain.user.dto.request.UserCreateRequest;
+import com.example.hackathon.domain.user.dto.response.UserCreateResponse;
 import com.example.hackathon.domain.user.service.UserService;
 
 import com.example.hackathon.global.response.ApiResponse;
@@ -19,11 +20,11 @@ public class UserController {
 
     private final UserService userService;
 
-    // 1. 사용자 생성 (POST -> created 사용)
+    // 1. 사용자 생성 또는 로그인 (온보딩)
     @PostMapping
-    public ResponseEntity<ApiResponse<Long>> createUser(@RequestBody UserCreateRequest request) {
-        Long userId = userService.createUser(request.deviceId(), request.nickname());
-        return ResponseEntity.ok(ApiResponse.created("사용자 생성 성공", userId));
+    public ResponseEntity<ApiResponse<UserCreateResponse>> createUser(@RequestBody UserCreateRequest request) {
+        UserCreateResponse response = userService.getOrCreateUser(request.deviceId(), request.nickname());
+        return ResponseEntity.ok(ApiResponse.ok(response));
     }
 
     // 2. 디톡스 시간 설정 (POST -> created 사용)

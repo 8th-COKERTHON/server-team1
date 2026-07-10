@@ -2,9 +2,11 @@ package com.example.hackathon.domain.user.service;
 
 import com.example.hackathon.domain.user.entity.User;
 import com.example.hackathon.domain.user.repository.UserRepository;
+import com.example.hackathon.domain.user.dto.response.UserCreateResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.util.Optional;
 
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
@@ -25,6 +27,24 @@ public class UserService {
                 .detoxEndTime(LocalTime.of(0, 0))
                 .build();
         return userRepository.save(user).getId();
+    }
+
+    @Transactional
+    public UserCreateResponse getOrCreateUser(String deviceId, String nickname) {
+        Optional<User> existingUser = userRepository.findByDeviceId(deviceId);
+        if (existingUser.isPresent()) {
+            User user = existingUser.get();
+            return UserCreateResponse.of(user.getId(), user.getNickname(), "LOGIN");
+        }
+        
+        User user = User.builder()
+                .deviceId(deviceId)
+                .nickname(nickname)
+                .detoxStartTime(LocalTime.of(0, 0))
+                .detoxEndTime(LocalTime.of(0, 0))
+                .build();
+        User savedUser = userRepository.save(user);
+        return UserCreateResponse.of(savedUser.getId(), savedUser.getNickname(), "SIGN_UP");
     }
 
     @Transactional
