@@ -30,6 +30,15 @@ spring:
 cors:
   allowed-origins: ${CORS_ORIGINS:http://localhost:3000,http://localhost:5173}
 
+# AWS S3 (테스트에서는 실제 호출하지 않는다. S3Presigner 빈 생성에 region 만 있으면 된다.)
+aws:
+  region: ${AWS_REGION:ap-northeast-2}
+  s3:
+    bucket: ${AWS_S3_BUCKET:test-bucket}
+    access-key: ${AWS_ACCESS_KEY_ID:}
+    secret-key: ${AWS_SECRET_ACCESS_KEY:}
+    presigned-url-expiration-seconds: ${AWS_S3_PRESIGN_EXPIRE:300}
+
 # Swagger
 springdoc:
   swagger-ui:
