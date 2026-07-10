@@ -32,19 +32,19 @@ public class MissionCertificationService {
     private final UserMissionLogRepository userMissionLogRepository;
     private final StorageService storageService;
     private final Clock clock;
+    private final MissionCertificationTransactionService transactionService;
 
-    @Transactional(noRollbackFor = BusinessException.class)
     public MissionCertificationResponse certify(String deviceId, MultipartFile image) {
         LocalDateTime now = LocalDateTime.now(clock);
         User user = findUser(deviceId);
-        UserMissionLog log = findTodayLogForUpdate(user, now);
+        LocalDate targetDate = MissionTargetDateResolver.resolve(user, now);
+        UserMissionLog log = userMissionLogRepository.findByUserIdAndTargetDate(user.getId(), targetDate)
+                .orElseThrow(() -> new BusinessException(ErrorCode.MISSION_ERROR_404_NOT_FOUND));
         validateInitialCertification(log, now);
 
         String newImageUrl = storageService.uploadMissionImage(log.getId(), image);
-        deleteOnRollback(newImageUrl, log.getId());
         try {
-            log.certify(newImageUrl, now);
-            userMissionLogRepository.saveAndFlush(log);
+            log = transactionService.certifyUploadedImage(user.getId(), targetDate, newImageUrl, now);
         } catch (RuntimeException exception) {
             deleteQuietly(newImageUrl, log.getId());
             throw exception;
@@ -77,7 +77,7 @@ public class MissionCertificationService {
         deleteAfterCommit(oldImageUrl, log.getId());
 
         return MissionCertificationRetakeResponse.of(
-                log, now, user.getDetoxEndTime(), now.isBefore(detoxEnd));
+                log, log.getUpdatedAt(), user.getDetoxEndTime(), now.isBefore(detoxEnd));
     }
 
     private User findUser(String deviceId) {
@@ -90,7 +90,7 @@ public class MissionCertificationService {
     }
 
     private UserMissionLog findTodayLogForUpdate(User user, LocalDateTime now) {
-        LocalDate targetDate = resolveTargetDate(user, now);
+        LocalDate targetDate = MissionTargetDateResolver.resolve(user, now);
         return userMissionLogRepository.findByUserIdAndTargetDateForUpdate(user.getId(), targetDate)
                 .orElseThrow(() -> new BusinessException(ErrorCode.MISSION_ERROR_404_NOT_FOUND));
     }
@@ -123,15 +123,6 @@ public class MissionCertificationService {
         if (!now.isBefore(detoxEnd)) {
             throw new BusinessException(ErrorCode.MISSION_ERROR_400_DETOX_ALREADY_ENDED);
         }
-    }
-
-    private LocalDate resolveTargetDate(User user, LocalDateTime now) {
-        LocalTime startTime = user.getDetoxStartTime();
-        LocalTime endTime = user.getDetoxEndTime();
-        if (!endTime.isAfter(startTime) && now.toLocalTime().isBefore(endTime)) {
-            return now.toLocalDate().minusDays(1);
-        }
-        return now.toLocalDate();
     }
 
     private LocalDateTime resolveDetoxEndDateTime(
