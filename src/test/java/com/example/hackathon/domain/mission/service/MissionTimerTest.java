@@ -14,11 +14,14 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Clock;
@@ -380,48 +383,32 @@ class MissionTimerTest {
         assertThat(userMissionLog.getStatus()).isEqualTo(MissionStatus.FAILED);
     }
 
-    @Test
-    @DisplayName("15. 스케줄러가 만료된 ASSIGNED 미션을 FAILED로 변경한다.")
-    void schedulerExpiresAssignedMission() {
+    @ParameterizedTest(name = "15. 스케줄러가 만료된 {0} 미션을 FAILED 처리 쿼리에 전달한다.")
+    @EnumSource(value = MissionStatus.class, names = {"ASSIGNED", "CONFIRMED"})
+    void schedulerExpiresEligibleMission(MissionStatus status) {
         // given
         LocalDateTime expiredTime = LocalDateTime.of(today, detoxStart.plusMinutes(11));
         Instant instant = expiredTime.atZone(ZoneId.of("Asia/Seoul")).toInstant();
         when(clock.instant()).thenReturn(instant);
         when(clock.getZone()).thenReturn(ZoneId.of("Asia/Seoul"));
+        ReflectionTestUtils.setField(userMissionLog, "status", status);
 
         UserMissionLogRepository mockRepo = mock(UserMissionLogRepository.class);
-        MissionScheduler scheduler = new MissionScheduler(mockRepo, clock);
+        JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+        when(jdbcTemplate.queryForObject(anyString(), eq(Boolean.class), anyLong())).thenReturn(true);
+        MissionScheduler scheduler = new MissionScheduler(mockRepo, clock, jdbcTemplate);
 
         // when
         scheduler.expireMissions();
 
         // then
-        verify(mockRepo, times(1)).updateExpiredMissions(expiredTime);
-    }
-
-    @Test
-    @DisplayName("16. 스케줄러가 만료된 CONFIRMED 미션을 FAILED로 변경한다.")
-    void schedulerExpiresConfirmedMission() {
-        // given
-        LocalDateTime expiredTime = LocalDateTime.of(today, detoxStart.plusMinutes(11));
-        Instant instant = expiredTime.atZone(ZoneId.of("Asia/Seoul")).toInstant();
-        when(clock.instant()).thenReturn(instant);
-        when(clock.getZone()).thenReturn(ZoneId.of("Asia/Seoul"));
-
-        UserMissionLogRepository mockRepo = mock(UserMissionLogRepository.class);
-        MissionScheduler scheduler = new MissionScheduler(mockRepo, clock);
-
-        // when
-        scheduler.expireMissions();
-
-        // then
-        verify(mockRepo, times(1)).updateExpiredMissions(expiredTime);
-    }
-
-    @Test
-    @DisplayName("17. SUCCESS 상태는 스케줄러가 변경하지 않는다. (리포지토리 쿼리에 SUCCESS가 제외됨)")
-    void schedulerDoesNotTargetSuccessStatus() {
-        // 해당 동작은 리포지토리의 벌크 업데이트 SQL에 의존하므로 쿼리 정합성을 통해 명시됨
+        assertThat(userMissionLog.getStatus()).isEqualTo(status);
+        verify(mockRepo).updateExpiredMissions(
+                expiredTime,
+                MissionStatus.FAILED,
+                MissionStatus.ASSIGNED,
+                MissionStatus.CONFIRMED
+        );
     }
 
     @Test
