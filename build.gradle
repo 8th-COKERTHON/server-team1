@@ -36,6 +36,10 @@ dependencies {
     // DB: PostgreSQL
     runtimeOnly 'org.postgresql:postgresql'
 
+    // AWS S3 (presigned URL 발급). BOM 으로 버전 통일.
+    implementation platform('software.amazon.awssdk:bom:2.30.0')
+    implementation 'software.amazon.awssdk:s3'
+
     // Lombok
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'

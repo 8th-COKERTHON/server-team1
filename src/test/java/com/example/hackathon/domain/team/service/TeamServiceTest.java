@@ -143,6 +143,7 @@ class TeamServiceTest {
 
         assertThat(detail.members()).hasSize(2);
         assertThat(detail.totalBricks()).isZero();
+        assertThat(detail.stage()).isEqualTo(1);
     }
 
     @Test

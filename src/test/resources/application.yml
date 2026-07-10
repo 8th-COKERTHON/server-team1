@@ -15,7 +15,7 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: create-drop
     show-sql: true
     open-in-view: false
     defer-datasource-initialization: true
@@ -29,16 +29,6 @@ spring:
 # CORS 허용 오리진 (프론트 주소)
 cors:
   allowed-origins: ${CORS_ORIGINS:http://localhost:3000,http://localhost:5173}
-
-# AWS S3 (미션 인증 이미지)
-# 자격증명(access-key/secret-key)은 .env / 환경변수로만 주입한다. 코드에 두지 않는다.
-aws:
-  region: ${AWS_REGION:ap-northeast-2}
-  s3:
-    bucket: ${AWS_S3_BUCKET:dijeok-image-475583545324-ap-northeast-2-an}
-    access-key: ${AWS_ACCESS_KEY_ID:}
-    secret-key: ${AWS_SECRET_ACCESS_KEY:}
-    presigned-url-expiration-seconds: ${AWS_S3_PRESIGN_EXPIRE:300}
 
 # Swagger
 springdoc:
