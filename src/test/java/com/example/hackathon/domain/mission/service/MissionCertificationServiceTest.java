@@ -47,6 +47,7 @@ class MissionCertificationServiceTest {
     @Mock UserMissionLogRepository userMissionLogRepository;
     @Mock StorageService storageService;
     @Mock Clock clock;
+    @Mock MissionCertificationTransactionService transactionService;
     @InjectMocks MissionCertificationService service;
 
     private User user;
@@ -84,6 +85,11 @@ class MissionCertificationServiceTest {
         LocalDateTime now = TARGET_DATE.atTime(22, 5);
         prepare(now, TARGET_DATE, log);
         when(storageService.uploadMissionImage(log.getId(), image)).thenReturn(IMAGE_URL);
+        when(transactionService.certifyUploadedImage(user.getId(), TARGET_DATE, IMAGE_URL, now))
+                .thenAnswer(invocation -> {
+                    log.certify(IMAGE_URL, now);
+                    return log;
+                });
 
         MissionCertificationResponse response = service.certify(DEVICE_ID, image);
 
@@ -91,7 +97,7 @@ class MissionCertificationServiceTest {
         assertThat(response.imageUrl()).isEqualTo(IMAGE_URL);
         assertThat(response.completedAt()).isEqualTo(now);
         assertThat(response.canRetake()).isTrue();
-        verify(userMissionLogRepository).saveAndFlush(log);
+        verify(transactionService).certifyUploadedImage(user.getId(), TARGET_DATE, IMAGE_URL, now);
     }
 
     @Test
@@ -137,15 +143,20 @@ class MissionCertificationServiceTest {
         ReflectionTestUtils.setField(log, "imageUrl", "https://bucket/old.jpg");
         ReflectionTestUtils.setField(log, "completedAt", completedAt);
         LocalDateTime now = TARGET_DATE.atTime(22, 20);
+        LocalDateTime storedUpdatedAt = now.plusSeconds(1);
         prepare(now, TARGET_DATE, log);
         when(storageService.uploadMissionImage(log.getId(), image)).thenReturn(IMAGE_URL);
+        when(userMissionLogRepository.saveAndFlush(log)).thenAnswer(invocation -> {
+            ReflectionTestUtils.setField(log, "updatedAt", storedUpdatedAt);
+            return log;
+        });
 
         MissionCertificationRetakeResponse response = service.retake(DEVICE_ID, image);
 
         assertThat(response.status()).isEqualTo(MissionStatus.SUCCESS);
         assertThat(response.imageUrl()).isEqualTo(IMAGE_URL);
         assertThat(response.completedAt()).isEqualTo(completedAt);
-        assertThat(response.updatedAt()).isEqualTo(now);
+        assertThat(response.updatedAt()).isEqualTo(storedUpdatedAt);
         verify(storageService).delete("https://bucket/old.jpg");
     }
 
@@ -162,18 +173,50 @@ class MissionCertificationServiceTest {
     }
 
     @Test
-    void overnightRetakeUsesPreviousTargetDateUntilDetoxEnd() {
+    void retakeUploadFailureKeepsExistingCertification() {
+        LocalDateTime completedAt = TARGET_DATE.atTime(22, 4);
+        String oldImageUrl = "https://bucket/old.jpg";
+        ReflectionTestUtils.setField(log, "status", MissionStatus.SUCCESS);
+        ReflectionTestUtils.setField(log, "imageUrl", oldImageUrl);
+        ReflectionTestUtils.setField(log, "completedAt", completedAt);
+        prepare(TARGET_DATE.atTime(22, 20), TARGET_DATE, log);
+        when(storageService.uploadMissionImage(log.getId(), image)).thenThrow(new RuntimeException("S3 failure"));
+
+        assertThatThrownBy(() -> service.retake(DEVICE_ID, image)).isInstanceOf(RuntimeException.class);
+        assertThat(log.getImageUrl()).isEqualTo(oldImageUrl);
+        assertThat(log.getCompletedAt()).isEqualTo(completedAt);
+        assertThat(log.getStatus()).isEqualTo(MissionStatus.SUCCESS);
+        verify(userMissionLogRepository, never()).saveAndFlush(any());
+        verify(storageService, never()).delete(anyString());
+    }
+
+    @Test
+    void retakeSaveFailureDeletesNewlyUploadedImage() {
+        ReflectionTestUtils.setField(log, "status", MissionStatus.SUCCESS);
+        ReflectionTestUtils.setField(log, "imageUrl", "https://bucket/old.jpg");
+        ReflectionTestUtils.setField(log, "completedAt", TARGET_DATE.atTime(22, 4));
+        prepare(TARGET_DATE.atTime(22, 20), TARGET_DATE, log);
+        when(storageService.uploadMissionImage(log.getId(), image)).thenReturn(IMAGE_URL);
+        when(userMissionLogRepository.saveAndFlush(log)).thenThrow(new RuntimeException("DB failure"));
+
+        assertThatThrownBy(() -> service.retake(DEVICE_ID, image)).isInstanceOf(RuntimeException.class);
+        verify(storageService).delete(IMAGE_URL);
+        verify(storageService, never()).delete("https://bucket/old.jpg");
+    }
+
+    @Test
+    void overnightRetakeUsesPreviousTargetDateWithinMissionDeadline() {
         user = User.builder()
                 .deviceId(DEVICE_ID)
                 .nickname("야간")
-                .detoxStartTime(LocalTime.of(23, 0))
+                .detoxStartTime(LocalTime.of(23, 55))
                 .detoxEndTime(LocalTime.of(1, 0))
                 .build();
         ReflectionTestUtils.setField(user, "id", 2L);
         ReflectionTestUtils.setField(log, "user", user);
         ReflectionTestUtils.setField(log, "status", MissionStatus.SUCCESS);
         ReflectionTestUtils.setField(log, "imageUrl", "old.jpg");
-        LocalDateTime now = TARGET_DATE.plusDays(1).atTime(0, 30);
+        LocalDateTime now = TARGET_DATE.plusDays(1).atTime(0, 4);
         prepare(now, TARGET_DATE, log);
         when(storageService.uploadMissionImage(log.getId(), image)).thenReturn(IMAGE_URL);
 
@@ -187,7 +230,7 @@ class MissionCertificationServiceTest {
     void missingTodayMissionIsRejected() {
         setClock(TARGET_DATE.atTime(22, 5));
         when(userRepository.findByDeviceId(DEVICE_ID)).thenReturn(Optional.of(user));
-        when(userMissionLogRepository.findByUserIdAndTargetDateForUpdate(user.getId(), TARGET_DATE))
+        when(userMissionLogRepository.findByUserIdAndTargetDate(user.getId(), TARGET_DATE))
                 .thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.certify(DEVICE_ID, image))
@@ -199,7 +242,9 @@ class MissionCertificationServiceTest {
     private void prepare(LocalDateTime now, LocalDate targetDate, UserMissionLog targetLog) {
         setClock(now);
         when(userRepository.findByDeviceId(DEVICE_ID)).thenReturn(Optional.of(user));
-        when(userMissionLogRepository.findByUserIdAndTargetDateForUpdate(user.getId(), targetDate))
+        lenient().when(userMissionLogRepository.findByUserIdAndTargetDate(user.getId(), targetDate))
+                .thenReturn(Optional.of(targetLog));
+        lenient().when(userMissionLogRepository.findByUserIdAndTargetDateForUpdate(user.getId(), targetDate))
                 .thenReturn(Optional.of(targetLog));
     }
 
