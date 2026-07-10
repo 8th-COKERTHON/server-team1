@@ -1,10 +1,12 @@
 package com.example.hackathon.domain.mission.service;
 
 import com.example.hackathon.domain.mission.dto.response.MissionTodayResponse;
+import com.example.hackathon.domain.mission.entity.DailyMission;
 import com.example.hackathon.domain.mission.entity.Difficulty;
 import com.example.hackathon.domain.mission.entity.Mission;
 import com.example.hackathon.domain.mission.entity.MissionStatus;
 import com.example.hackathon.domain.mission.entity.UserMissionLog;
+import com.example.hackathon.domain.mission.repository.DailyMissionRepository;
 import com.example.hackathon.domain.mission.repository.MissionRepository;
 import com.example.hackathon.domain.mission.repository.UserMissionLogRepository;
 import com.example.hackathon.domain.user.entity.User;
@@ -44,6 +46,9 @@ class MissionServiceTest {
     private MissionRepository missionRepository;
 
     @Mock
+    private DailyMissionRepository dailyMissionRepository;
+
+    @Mock
     private UserMissionLogRepository userMissionLogRepository;
 
     private final String deviceId = "test-device-id";
@@ -53,6 +58,7 @@ class MissionServiceTest {
 
     private User user;
     private Mission mission;
+    private DailyMission dailyMission;
 
     @BeforeEach
     void setUp() {
@@ -67,8 +73,15 @@ class MissionServiceTest {
         mission = Mission.builder()
                 .title("물 한 잔 마시기")
                 .difficulty(Difficulty.EASY)
+                .isActive(true)
                 .build();
         ReflectionTestUtils.setField(mission, "id", 100L);
+
+        dailyMission = DailyMission.builder()
+                .mission(mission)
+                .targetDate(today)
+                .build();
+        ReflectionTestUtils.setField(dailyMission, "id", 200L);
     }
 
     @Nested
@@ -125,13 +138,14 @@ class MissionServiceTest {
         void alreadyAssigned() {
             // given
             when(userRepository.findByDeviceId(deviceId)).thenReturn(Optional.of(user));
+            when(dailyMissionRepository.findByTargetDate(today)).thenReturn(Optional.of(dailyMission));
 
             LocalDateTime assignedAt = LocalDateTime.of(today, detoxStart);
             UserMissionLog existingLog = UserMissionLog.builder()
                     .user(user)
-                    .mission(mission)
+                    .dailyMission(dailyMission)
                     .targetDate(today)
-                    .status(MissionStatus.PENDING)
+                    .status(MissionStatus.ASSIGNED)
                     .assignedAt(assignedAt)
                     .deadlineAt(assignedAt.plusMinutes(10))
                     .build();
@@ -149,8 +163,8 @@ class MissionServiceTest {
             assertThat(response.missionLogId()).isEqualTo(500L);
             assertThat(response.missionId()).isEqualTo(100L);
             assertThat(response.title()).isEqualTo("물 한 잔 마시기");
-            assertThat(response.status()).isEqualTo(MissionStatus.PENDING);
-            assertThat(response.popupRequired()).isTrue(); // popupShownAt 이 null 이므로 true
+            assertThat(response.status()).isEqualTo(MissionStatus.ASSIGNED);
+            assertThat(response.popupRequired()).isTrue();
             verify(userMissionLogRepository, never()).save(any(UserMissionLog.class));
         }
 
@@ -159,18 +173,18 @@ class MissionServiceTest {
         void createNewMissionLog() {
             // given
             when(userRepository.findByDeviceId(deviceId)).thenReturn(Optional.of(user));
+            when(dailyMissionRepository.findByTargetDate(today)).thenReturn(Optional.of(dailyMission));
             when(userMissionLogRepository.findByUserIdAndTargetDate(user.getId(), today))
                     .thenReturn(Optional.empty());
-            when(missionRepository.findFirstByOrderByIdAsc()).thenReturn(Optional.of(mission));
 
             LocalDateTime assignedAt = LocalDateTime.of(today, detoxStart);
             LocalDateTime deadlineAt = assignedAt.plusMinutes(10);
 
             UserMissionLog savedLog = UserMissionLog.builder()
                     .user(user)
-                    .mission(mission)
+                    .dailyMission(dailyMission)
                     .targetDate(today)
-                    .status(MissionStatus.PENDING)
+                    .status(MissionStatus.ASSIGNED)
                     .assignedAt(assignedAt)
                     .deadlineAt(deadlineAt)
                     .build();
@@ -187,7 +201,7 @@ class MissionServiceTest {
             assertThat(response.missionLogId()).isEqualTo(777L);
             assertThat(response.missionId()).isEqualTo(100L);
             assertThat(response.title()).isEqualTo("물 한 잔 마시기");
-            assertThat(response.status()).isEqualTo(MissionStatus.PENDING);
+            assertThat(response.status()).isEqualTo(MissionStatus.ASSIGNED);
             assertThat(response.assignedAt()).isEqualTo(assignedAt);
             assertThat(response.deadlineAt()).isEqualTo(deadlineAt);
             assertThat(response.popupRequired()).isTrue();
@@ -199,9 +213,8 @@ class MissionServiceTest {
         void noMissionDataInDb() {
             // given
             when(userRepository.findByDeviceId(deviceId)).thenReturn(Optional.of(user));
-            when(userMissionLogRepository.findByUserIdAndTargetDate(user.getId(), today))
-                    .thenReturn(Optional.empty());
-            when(missionRepository.findFirstByOrderByIdAsc()).thenReturn(Optional.empty());
+            when(dailyMissionRepository.findByTargetDate(today)).thenReturn(Optional.empty());
+            when(missionRepository.findFirstByIsActiveTrueOrderByIdAsc()).thenReturn(Optional.empty());
 
             LocalDateTime now = LocalDateTime.of(today, detoxStart.plusMinutes(1));
 
@@ -216,7 +229,7 @@ class MissionServiceTest {
         void handleDataIntegrityViolationException() {
             // given
             when(userRepository.findByDeviceId(deviceId)).thenReturn(Optional.of(user));
-            when(missionRepository.findFirstByOrderByIdAsc()).thenReturn(Optional.of(mission));
+            when(dailyMissionRepository.findByTargetDate(today)).thenReturn(Optional.of(dailyMission));
 
             when(userMissionLogRepository.save(any(UserMissionLog.class)))
                     .thenThrow(new org.springframework.dao.DataIntegrityViolationException("Duplicate key value"));
@@ -224,9 +237,9 @@ class MissionServiceTest {
             LocalDateTime assignedAt = LocalDateTime.of(today, detoxStart);
             UserMissionLog existingLog = UserMissionLog.builder()
                     .user(user)
-                    .mission(mission)
+                    .dailyMission(dailyMission)
                     .targetDate(today)
-                    .status(MissionStatus.PENDING)
+                    .status(MissionStatus.ASSIGNED)
                     .assignedAt(assignedAt)
                     .deadlineAt(assignedAt.plusMinutes(10))
                     .build();
@@ -246,7 +259,7 @@ class MissionServiceTest {
             assertThat(response.missionLogId()).isEqualTo(999L);
             assertThat(response.missionId()).isEqualTo(100L);
             assertThat(response.title()).isEqualTo("물 한 잔 마시기");
-            assertThat(response.status()).isEqualTo(MissionStatus.PENDING);
+            assertThat(response.status()).isEqualTo(MissionStatus.ASSIGNED);
             verify(userMissionLogRepository, times(1)).save(any(UserMissionLog.class));
             verify(userMissionLogRepository, times(2)).findByUserIdAndTargetDate(user.getId(), today);
         }
