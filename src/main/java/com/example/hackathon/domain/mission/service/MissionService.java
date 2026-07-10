@@ -107,15 +107,20 @@ public class MissionService {
         List<DailyMission> recentDailyMissions = dailyMissionRepository
                 .findByTargetDateBeforeOrderByTargetDateDesc(todayDate, PageRequest.of(0, m));
 
+        Set<Long> activeMissionIds = activeMissions.stream()
+                .map(Mission::getId)
+                .collect(Collectors.toSet());
+
         Set<Long> usedMissionIds = recentDailyMissions.stream()
                 .map(dm -> dm.getMission().getId())
+                .filter(activeMissionIds::contains)
                 .collect(Collectors.toSet());
 
         Long lastMissionId = recentDailyMissions.isEmpty() ? null : recentDailyMissions.get(0).getMission().getId();
 
         List<Mission> candidates;
         if (usedMissionIds.size() < m) {
-            // 현재 순환에서 아직 사용되지 않은 미션들 중 선택
+            // 현재 순환에서 아직 사용되지 않은 활성 미션들 중 선택
             candidates = activeMissions.stream()
                     .filter(mission -> !usedMissionIds.contains(mission.getId()))
                     .collect(Collectors.toList());
@@ -130,7 +135,7 @@ public class MissionService {
         }
 
         // 남은 후보 중 랜덤 선택
-        int randomIndex = new Random().nextInt(candidates.size());
+        int randomIndex = java.util.concurrent.ThreadLocalRandom.current().nextInt(candidates.size());
         return candidates.get(randomIndex);
     }
 

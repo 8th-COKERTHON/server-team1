@@ -30,10 +30,10 @@ public class User {
     @Column(nullable = false, length = 30)
     private String nickname;
 
-    @Column(nullable = false)
+    @Column(name = "detox_start_time")
     private LocalTime detoxStartTime;
 
-    @Column(nullable = false)
+    @Column(name = "detox_end_time")
     private LocalTime detoxEndTime;
 
     @Column(name = "personal_stage")
