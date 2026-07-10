@@ -47,4 +47,11 @@ public class Team {
         this.inviteCode = inviteCode;
         this.totalBricks = INITIAL_BRICKS;
     }
+
+    public void updateTotalBricks(int delta) {
+        this.totalBricks += delta;
+        if (this.totalBricks < 0) {
+            this.totalBricks = 0;
+        }
+    }
 }

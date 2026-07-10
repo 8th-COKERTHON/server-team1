@@ -11,6 +11,7 @@ import jakarta.persistence.LockModeType;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 public interface UserMissionLogRepository extends JpaRepository<UserMissionLog, Long> {
@@ -23,6 +24,8 @@ public interface UserMissionLogRepository extends JpaRepository<UserMissionLog, 
             @Param("userId") Long userId,
             @Param("targetDate") LocalDate targetDate
     );
+
+    List<UserMissionLog> findByTeamIdAndTargetDate(Long teamId, LocalDate targetDate);
 
     @Modifying(clearAutomatically = true)
     @Query("update UserMissionLog u set u.status = :failedStatus, u.updatedAt = :now " +

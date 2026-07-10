@@ -23,4 +23,8 @@ public interface TeamRepository extends JpaRepository<Team, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select t from Team t where t.inviteCode = :inviteCode")
     Optional<Team> findByInviteCodeForUpdate(@Param("inviteCode") String inviteCode);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select t from Team t where t.id = :id")
+    Optional<Team> findByIdForUpdate(@Param("id") Long id);
 }

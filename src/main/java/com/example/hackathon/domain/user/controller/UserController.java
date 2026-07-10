@@ -3,7 +3,9 @@ package com.example.hackathon.domain.user.controller;
 import com.example.hackathon.domain.user.dto.DetoxTimeRequest;
 import com.example.hackathon.domain.user.dto.request.UserCreateRequest;
 import com.example.hackathon.domain.user.dto.request.ActiveTeamRequest;
+import com.example.hackathon.domain.user.dto.request.UserEmailRequest;
 import com.example.hackathon.domain.user.dto.response.UserCreateResponse;
+import com.example.hackathon.domain.user.dto.response.UserHomeResponse;
 import com.example.hackathon.domain.user.service.UserService;
 
 import com.example.hackathon.global.response.ApiResponse;
@@ -27,7 +29,7 @@ public class UserController {
     // 1. 사용자 생성 또는 로그인 (온보딩)
     @PostMapping
     public ResponseEntity<ApiResponse<UserCreateResponse>> createUser(@Valid @RequestBody UserCreateRequest request) {
-        UserCreateResponse response = userService.getOrCreateUser(request.deviceId(), request.nickname());
+        UserCreateResponse response = userService.getOrCreateUser(request.deviceId(), request.nickname(), request.email());
         return ResponseEntity.ok(ApiResponse.ok(response));
     }
 
@@ -60,5 +62,24 @@ public class UserController {
     ) {
         userService.selectActiveTeam(userId, request.teamId());
         return ResponseEntity.ok(ApiResponse.ok("활성 팀이 성공적으로 변경되었습니다.", "Success"));
+    }
+
+    // 6. 이메일 등록 및 수정 (PATCH -> ok 사용, "저장이 완료되었어요." 응답 메시지 제공)
+    @PatchMapping("/{userId}/email")
+    public ResponseEntity<ApiResponse<String>> updateUserEmail(
+            @PathVariable Long userId,
+            @Valid @RequestBody UserEmailRequest request
+    ) {
+        userService.updateUserEmail(userId, request.email());
+        return ResponseEntity.ok(ApiResponse.ok("저장이 완료되었어요.", "Success"));
+    }
+
+    // 7. 홈 화면 데이터 조회 및 벽돌 정산 (GET)
+    @GetMapping("/{userId}/home")
+    public ResponseEntity<ApiResponse<UserHomeResponse>> getHomeData(
+            @PathVariable Long userId
+    ) {
+        UserHomeResponse response = userService.getHomeData(userId);
+        return ResponseEntity.ok(ApiResponse.ok("홈 화면 데이터 조회 성공", response));
     }
 }
