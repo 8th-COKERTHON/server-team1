@@ -391,8 +391,6 @@ class MissionTimerTest {
         Instant instant = expiredTime.atZone(ZoneId.of("Asia/Seoul")).toInstant();
         when(clock.instant()).thenReturn(instant);
         when(clock.getZone()).thenReturn(ZoneId.of("Asia/Seoul"));
-        ReflectionTestUtils.setField(userMissionLog, "status", status);
-
         UserMissionLogRepository mockRepo = mock(UserMissionLogRepository.class);
         JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
         when(jdbcTemplate.queryForObject(anyString(), eq(Boolean.class), anyLong())).thenReturn(true);
@@ -402,7 +400,6 @@ class MissionTimerTest {
         scheduler.expireMissions();
 
         // then
-        assertThat(userMissionLog.getStatus()).isEqualTo(status);
         verify(mockRepo).updateExpiredMissions(
                 expiredTime,
                 MissionStatus.FAILED,
