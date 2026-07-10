@@ -1,3 +1,5 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+
 language: "ko-KR"
 early_access: false
 reviews:
@@ -7,12 +9,14 @@ reviews:
   poem: false
   review_status: true
   collapse_walkthrough: true
+  instructions: |
+    우리는 현재 15시간 안에 서비스를 완성해야 하는 해커톤을 진행 중입니다.
+    다음 규칙을 엄격히 준수하여 리뷰해 주세요:
+    1. 복잡한 디자인 패턴(DDD, Hexagonal)이나 추상화(Interface) 도입을 권장하지 마세요. (KISS, YAGNI 원칙 적용)
+    2. 철저하게 NullPointerException 같은 크리티컬한 버그나, 오타, 문법 오류에 대해서만 지적해 주세요.
+    3. 코드가 조금 지저분하더라도 정상적으로 동작(Happy Path)한다면 '승인(Approve)' 방향으로 코멘트해 주세요.
+    4. 모든 리뷰는 한국어로 작성해 주세요.
 chat:
   auto_reply: true
-instructions: |
-  우리는 현재 15시간 안에 서비스를 완성해야 하는 해커톤을 진행 중입니다.
-  다음 규칙을 엄격히 준수하여 리뷰해 주세요:
-  1. 복잡한 디자인 패턴(DDD, Hexagonal)이나 추상화(Interface) 도입을 권장하지 마세요. (KISS, YAGNI 원칙 적용)
-  2. 철저하게 NullPointerException 같은 크리티컬한 버그나, 오타, 문법 오류에 대해서만 지적해 주세요.
-  3. 코드가 조금 지저분하더라도 정상적으로 동작(Happy Path)한다면 '승인(Approve)' 방향으로 코멘트해 주세요.
-  4. 모든 리뷰는 한국어로 작성해 주세요.
+  instructions: |
+    우리는 현재 15시간 안에 서비스를 완성해야 하는 해커톤을 진행 중입니다. 해커톤 규칙(KISS, YAGNI 원칙)에 맞춰서 핵심적인 버그 위주로 답변해 주세요. 모든 답변은 한국어로 작성해 주세요.
