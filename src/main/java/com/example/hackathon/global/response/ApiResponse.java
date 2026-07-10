@@ -40,6 +40,10 @@ public record ApiResponse<T>(
         return of(HttpStatus.OK, message, data);
     }
 
+    public static <T> ApiResponse<T> ok(T data) {
+        return of(HttpStatus.OK, "Success", data);
+    }
+
     public static <T> ApiResponse<T> created(String message, T data) {
         return of(HttpStatus.CREATED, message, data);
     }

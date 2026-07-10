@@ -1,0 +1,39 @@
+spring:
+  application:
+    name: hackathon
+
+  # .env 를 프로퍼티 소스로 로드 (없으면 무시하고 아래 기본값 사용)
+  config:
+    import: optional:file:.env[.properties]
+
+  # 기본 = docker compose 로 띄운 PostgreSQL (호스트 5433)
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5433/hackathon}
+    username: ${DB_USERNAME:hackathon}
+    password: ${DB_PASSWORD:hackathon}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: true
+    open-in-view: false
+    defer-datasource-initialization: true
+    properties:
+      hibernate:
+        format_sql: true
+
+  jackson:
+    time-zone: Asia/Seoul
+
+# CORS 허용 오리진 (프론트 주소)
+cors:
+  allowed-origins: ${CORS_ORIGINS:http://localhost:3000,http://localhost:5173}
+
+# Swagger
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+  default-produces-media-type: application/json
