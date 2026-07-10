@@ -1,6 +1,7 @@
 package com.example.hackathon.domain.mission.repository;
 
 import com.example.hackathon.domain.mission.entity.UserMissionLog;
+import com.example.hackathon.domain.mission.entity.MissionStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -15,8 +16,13 @@ public interface UserMissionLogRepository extends JpaRepository<UserMissionLog, 
     Optional<UserMissionLog> findByUserIdAndTargetDate(Long userId, LocalDate targetDate);
 
     @Modifying(clearAutomatically = true)
-    @Query("update UserMissionLog u set u.status = com.example.hackathon.domain.mission.entity.MissionStatus.FAILED, u.updatedAt = :now " +
-           "where u.status in (com.example.hackathon.domain.mission.entity.MissionStatus.ASSIGNED, com.example.hackathon.domain.mission.entity.MissionStatus.CONFIRMED) " +
+    @Query("update UserMissionLog u set u.status = :failedStatus, u.updatedAt = :now " +
+           "where u.status in (:assignedStatus, :confirmedStatus) " +
            "and u.deadlineAt < :now")
-    int updateExpiredMissions(@Param("now") LocalDateTime now);
+    int updateExpiredMissions(
+            @Param("now") LocalDateTime now,
+            @Param("failedStatus") MissionStatus failedStatus,
+            @Param("assignedStatus") MissionStatus assignedStatus,
+            @Param("confirmedStatus") MissionStatus confirmedStatus
+    );
 }
