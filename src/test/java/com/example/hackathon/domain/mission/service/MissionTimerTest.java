@@ -479,4 +479,33 @@ class MissionTimerTest {
         assertThat(response1.missionLogId()).isEqualTo(response2.missionLogId());
         verify(userMissionLogRepository, times(2)).findByUserIdAndTargetDate(user.getId(), today);
     }
+
+    @Test
+    @DisplayName("21. 디톡스 설정 시간이 10분보다 짧은 1분인 경우, deadline_at은 디톡스 종료 시각으로 단축된다.")
+    void shortDetoxTimeShortensDeadlineAt() {
+        // given
+        User shortUser = User.builder()
+                .deviceId(deviceId)
+                .nickname("단기유저")
+                .detoxStartTime(LocalTime.of(22, 0))
+                .detoxEndTime(LocalTime.of(22, 1))
+                .build();
+        ReflectionTestUtils.setField(shortUser, "id", 3L);
+
+        LocalDateTime now = LocalDateTime.of(today, LocalTime.of(22, 0));
+        setClockTime(now);
+
+        when(userRepository.findByDeviceId(deviceId)).thenReturn(Optional.of(shortUser));
+        when(userMissionLogRepository.findByUserIdAndTargetDate(shortUser.getId(), today))
+                .thenReturn(Optional.empty());
+        when(dailyMissionRepository.findByTargetDate(today)).thenReturn(Optional.of(dailyMission));
+
+        when(transactionService.saveUserMissionLog(any(UserMissionLog.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // when
+        MissionTodayResponse response = missionService.getOrCreateTodayMission(deviceId);
+
+        // then
+        assertThat(response.deadlineAt()).isEqualTo(LocalDateTime.of(today, LocalTime.of(22, 1)));
+    }
 }
