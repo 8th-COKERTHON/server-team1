@@ -1,0 +1,27 @@
+spring:
+  # ----------------------------------------------------
+  # [1] H2 Database 설정 (로컬 개발 & 해커톤 비상용)
+  # 서버를 껐다 켜도 데이터가 유지되도록 file 모드 사용
+  # ----------------------------------------------------
+  datasource:
+    url: jdbc:h2:file:./hackathon_db;AUTO_SERVER=TRUE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+    
+  # ----------------------------------------------------
+  # [2] MySQL 설정 (AWS RDS 세팅 후 아래 주석을 풀고 사용)
+  # ----------------------------------------------------
+  # datasource:
+  #   url: jdbc:mysql://[RDS엔드포인트주소]:3306/[DB이름]?useSSL=false&allowPublicKeyRetrieval=true
+  #   username: [아이디]
+  #   password: [비밀번호]
+  #   driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update  # Entity를 만들면 DB 테이블 자동 생성
+    show-sql: true      # 콘솔에 쿼리문 출력
+    properties:
+      hibernate:
+        format_sql: true
