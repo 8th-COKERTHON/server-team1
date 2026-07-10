@@ -1,0 +1,17 @@
+# prod 프로파일: RDS(PostgreSQL). 모든 값은 환경변수로 주입.
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+
+# 기본값을 두지 않는다. JWT_SECRET 이 주입되지 않으면 부팅에 실패시켜
+# application.yml 의 개발용 기본 시크릿이 운영에서 쓰이는 사고를 막는다.
+jwt:
+  secret: ${JWT_SECRET}

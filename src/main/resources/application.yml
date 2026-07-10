@@ -1,27 +1,54 @@
 spring:
-  # ----------------------------------------------------
-  # [1] H2 Database 설정 (로컬 개발 & 해커톤 비상용)
-  # 서버를 껐다 켜도 데이터가 유지되도록 file 모드 사용
-  # ----------------------------------------------------
+  application:
+    name: hackathon
+
+  # .env 를 프로퍼티 소스로 로드 (없으면 무시하고 아래 기본값 사용)
+  config:
+    import: optional:file:.env[.properties]
+
+  # 기본 = docker compose 로 띄운 PostgreSQL (호스트 5433)
   datasource:
-    url: jdbc:h2:file:./hackathon_db;AUTO_SERVER=TRUE
-    driver-class-name: org.h2.Driver
-    username: sa
-    password:
-    
-  # ----------------------------------------------------
-  # [2] MySQL 설정 (AWS RDS 세팅 후 아래 주석을 풀고 사용)
-  # ----------------------------------------------------
-  # datasource:
-  #   url: jdbc:mysql://[RDS엔드포인트주소]:3306/[DB이름]?useSSL=false&allowPublicKeyRetrieval=true
-  #   username: [아이디]
-  #   password: [비밀번호]
-  #   driver-class-name: com.mysql.cj.jdbc.Driver
+    url: ${DB_URL:jdbc:postgresql://localhost:5433/hackathon}
+    username: ${DB_USERNAME:hackathon}
+    password: ${DB_PASSWORD:hackathon}
+    driver-class-name: org.postgresql.Driver
 
   jpa:
     hibernate:
-      ddl-auto: update  # Entity를 만들면 DB 테이블 자동 생성
-    show-sql: true      # 콘솔에 쿼리문 출력
+      ddl-auto: update
+    show-sql: true
+    open-in-view: false
     properties:
       hibernate:
         format_sql: true
+
+  jackson:
+    time-zone: Asia/Seoul
+
+# JWT 설정
+jwt:
+  secret: ${JWT_SECRET:hackathon-dev-secret-key-please-change-me-0123456789-abcdefghij}
+  expiration-ms: ${JWT_EXPIRATION_MS:86400000} # 24h
+
+# 소셜 로그인 (실제 키는 .env / 환경변수로 주입)
+oauth:
+  kakao:
+    client-id: ${KAKAO_CLIENT_ID:}
+    client-secret: ${KAKAO_CLIENT_SECRET:}
+    redirect-uri: ${KAKAO_REDIRECT_URI:http://localhost:3000/oauth/kakao}
+  google:
+    client-id: ${GOOGLE_CLIENT_ID:}
+    client-secret: ${GOOGLE_CLIENT_SECRET:}
+    redirect-uri: ${GOOGLE_REDIRECT_URI:http://localhost:3000/oauth/google}
+
+# CORS 허용 오리진 (프론트 주소)
+cors:
+  allowed-origins: ${CORS_ORIGINS:http://localhost:3000,http://localhost:5173}
+
+# Swagger
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+  default-produces-media-type: application/json

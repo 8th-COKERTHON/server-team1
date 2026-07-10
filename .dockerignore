@@ -1,0 +1,18 @@
+# 비밀 값이 빌드 컨텍스트에 딸려 들어가지 않도록 (이미지는 공개 저장소에 올라간다)
+.env
+*.pem
+
+# 빌드 산출물 / 로컬 캐시
+build/
+.gradle/
+bin/
+out/
+
+.git/
+.github/
+.idea/
+.vscode/
+
+docker-compose.yml
+README.md
+HELP.md
