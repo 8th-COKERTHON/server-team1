@@ -35,6 +35,8 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class MissionService {
 
+    private static final long MISSION_DEADLINE_MINUTES = 10;
+
     private final UserRepository userRepository;
     private final MissionRepository missionRepository;
     private final DailyMissionRepository dailyMissionRepository;
@@ -43,7 +45,11 @@ public class MissionService {
     private final Clock clock;
 
     @Transactional
-    public MissionTodayResponse getOrCreateTodayMission(String deviceId, LocalDateTime nowTime) {
+    public MissionTodayResponse getOrCreateTodayMission(String deviceId) {
+        return getOrCreateTodayMission(deviceId, LocalDateTime.now(clock));
+    }
+
+    private MissionTodayResponse getOrCreateTodayMission(String deviceId, LocalDateTime nowTime) {
         // 1. 사용자 조회
         User user = userRepository.findByDeviceId(deviceId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_ERROR_404_NOT_FOUND));
@@ -68,7 +74,7 @@ public class MissionService {
         // 5. 오늘 날짜의 USER_MISSION_LOG 조회 및 생성
         UserMissionLog log = userMissionLogRepository.findByUserIdAndTargetDate(user.getId(), targetDate)
                 .orElseGet(() -> {
-                    LocalDateTime deadlineDateTime = detoxStartDateTime.plusMinutes(10);
+                    LocalDateTime deadlineDateTime = detoxStartDateTime.plusMinutes(MISSION_DEADLINE_MINUTES);
 
                     UserMissionLog newLog = UserMissionLog.builder()
                             .user(user)
@@ -94,24 +100,7 @@ public class MissionService {
     @Transactional
     public MissionTodayStatusResponse getTodayMissionStatus(String deviceId) {
         LocalDateTime now = LocalDateTime.now(clock);
-        User user = userRepository.findByDeviceId(deviceId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_ERROR_404_NOT_FOUND));
-
-        if (user.getDetoxStartTime() == null || user.getDetoxEndTime() == null) {
-            throw new BusinessException(ErrorCode.MISSION_ERROR_400_DETOX_TIME_NOT_SET);
-        }
-
-        LocalDate targetDate = calculateTargetDate(user, now);
-
-        UserMissionLog log = userMissionLogRepository.findByUserIdAndTargetDate(user.getId(), targetDate)
-                .orElseGet(() -> {
-                    MissionTodayResponse todayResponse = getOrCreateTodayMission(deviceId, now);
-                    return userMissionLogRepository.findById(todayResponse.missionLogId())
-                            .orElseThrow(() -> new BusinessException(ErrorCode.MISSION_ERROR_404_NOT_FOUND));
-                });
-
-        // Lazy 만료 처리
-        log = checkAndExpireLog(log, now);
+        UserMissionLog log = resolveTodayLog(deviceId, now);
 
         boolean expired = now.isAfter(log.getDeadlineAt());
         long remainingSeconds = calculateRemainingSeconds(log, now);
@@ -125,24 +114,7 @@ public class MissionService {
     @Transactional
     public MissionPopupResponse recordPopupShown(String deviceId) {
         LocalDateTime now = LocalDateTime.now(clock);
-        User user = userRepository.findByDeviceId(deviceId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_ERROR_404_NOT_FOUND));
-
-        if (user.getDetoxStartTime() == null || user.getDetoxEndTime() == null) {
-            throw new BusinessException(ErrorCode.MISSION_ERROR_400_DETOX_TIME_NOT_SET);
-        }
-
-        LocalDate targetDate = calculateTargetDate(user, now);
-
-        UserMissionLog log = userMissionLogRepository.findByUserIdAndTargetDate(user.getId(), targetDate)
-                .orElseGet(() -> {
-                    MissionTodayResponse todayResponse = getOrCreateTodayMission(deviceId, now);
-                    return userMissionLogRepository.findById(todayResponse.missionLogId())
-                            .orElseThrow(() -> new BusinessException(ErrorCode.MISSION_ERROR_404_NOT_FOUND));
-                });
-
-        // Lazy 만료 처리
-        log = checkAndExpireLog(log, now);
+        UserMissionLog log = resolveTodayLog(deviceId, now);
 
         // 예외 검증
         if (now.isBefore(log.getAssignedAt())) {
@@ -168,24 +140,7 @@ public class MissionService {
     @Transactional
     public MissionConfirmResponse confirmMission(String deviceId) {
         LocalDateTime now = LocalDateTime.now(clock);
-        User user = userRepository.findByDeviceId(deviceId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_ERROR_404_NOT_FOUND));
-
-        if (user.getDetoxStartTime() == null || user.getDetoxEndTime() == null) {
-            throw new BusinessException(ErrorCode.MISSION_ERROR_400_DETOX_TIME_NOT_SET);
-        }
-
-        LocalDate targetDate = calculateTargetDate(user, now);
-
-        UserMissionLog log = userMissionLogRepository.findByUserIdAndTargetDate(user.getId(), targetDate)
-                .orElseGet(() -> {
-                    MissionTodayResponse todayResponse = getOrCreateTodayMission(deviceId, now);
-                    return userMissionLogRepository.findById(todayResponse.missionLogId())
-                            .orElseThrow(() -> new BusinessException(ErrorCode.MISSION_ERROR_404_NOT_FOUND));
-                });
-
-        // Lazy 만료 처리
-        log = checkAndExpireLog(log, now);
+        UserMissionLog log = resolveTodayLog(deviceId, now);
 
         // 예외 검증
         if (now.isBefore(log.getAssignedAt())) {
@@ -282,7 +237,7 @@ public class MissionService {
         LocalDate today = now.toLocalDate();
 
         LocalDateTime yesterdayStart = LocalDateTime.of(today.minusDays(1), startTime);
-        LocalDateTime yesterdayDeadline = yesterdayStart.plusMinutes(10);
+        LocalDateTime yesterdayDeadline = yesterdayStart.plusMinutes(MISSION_DEADLINE_MINUTES);
 
         if (now.isBefore(yesterdayDeadline)) {
             return today.minusDays(1);
@@ -297,6 +252,25 @@ public class MissionService {
             userMissionLogRepository.save(log);
         }
         return log;
+    }
+
+    private UserMissionLog resolveTodayLog(String deviceId, LocalDateTime now) {
+        User user = userRepository.findByDeviceId(deviceId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_ERROR_404_NOT_FOUND));
+
+        if (user.getDetoxStartTime() == null || user.getDetoxEndTime() == null) {
+            throw new BusinessException(ErrorCode.MISSION_ERROR_400_DETOX_TIME_NOT_SET);
+        }
+
+        LocalDate targetDate = calculateTargetDate(user, now);
+        UserMissionLog log = userMissionLogRepository.findByUserIdAndTargetDate(user.getId(), targetDate)
+                .orElseGet(() -> {
+                    MissionTodayResponse todayResponse = getOrCreateTodayMission(deviceId, now);
+                    return userMissionLogRepository.findById(todayResponse.missionLogId())
+                            .orElseThrow(() -> new BusinessException(ErrorCode.MISSION_ERROR_404_NOT_FOUND));
+                });
+
+        return checkAndExpireLog(log, now);
     }
 
     private long calculateRemainingSeconds(UserMissionLog log, LocalDateTime now) {
