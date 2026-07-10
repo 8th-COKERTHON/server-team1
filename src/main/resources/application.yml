@@ -18,10 +18,17 @@ spring:
       ddl-auto: update
     show-sql: true
     open-in-view: false
+    # data.sql 을 Hibernate 가 테이블을 만든 뒤에 실행하도록 미룬다.
     defer-datasource-initialization: true
     properties:
       hibernate:
         format_sql: true
+
+  # data.sql(미션 초기 데이터)을 매 기동 시 실행한다. PostgreSQL 은 always 가 없으면 안 읽는다.
+  # data.sql 이 ON CONFLICT DO NOTHING 이라 여러 번 실행돼도 안전하다.
+  sql:
+    init:
+      mode: always
 
   jackson:
     time-zone: Asia/Seoul
