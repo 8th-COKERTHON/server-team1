@@ -1,6 +1,11 @@
 # server-team1
 
-제8회 코커톤 백엔드. Spring Boot 4.1.0 / Java 21 / PostgreSQL.
+**적(積)** — 랜덤 미션 기반 디지털 디톡스 서비스. 제8회 코커톤.
+
+매일 설정한 디톡스 시간에 랜덤 미션을 수행하고 인증사진을 올려 습관을 쌓는다.
+**로그인이 없다.** 앱이 생성한 `deviceId` 로 사용자를 식별한다.
+
+Spring Boot 4.1.0 / Java 21 / PostgreSQL.
 
 ## 빠른 실행
 
@@ -22,31 +27,41 @@ docker compose up -d           # Postgres 기동 (호스트 5433)
 
 ```
 domain/
-  user/    사용자 (인증용)
+  user/    사용자 (deviceId, 닉네임, 디톡스 시간)
+  team/    팀 생성 / 초대코드 참여
+  mission/ 랜덤 미션, 인증
+  image/   S3 Presigned URL 발급
 global/
-  config/  SecurityConfig, SwaggerConfig
-  jwt/     JwtProvider, JwtAuthenticationFilter
-  exception/ GlobalExceptionHandler
+  config/    WebConfig(CORS), SwaggerConfig
+  response/  ApiResponse, ErrorResponse
+  exception/ ErrorCode, BusinessException, GlobalExceptionHandler
 ```
 
-기능 도메인은 `domain/` 아래에 패키지를 하나씩 추가한다.
-**새 엔드포인트는 기본이 공개(permitAll)** 라 로그인 없이 바로 호출·시연할 수 있다.
+## 공통 응답 형식
+
+모든 API 는 아래 형식으로 응답한다. 컨트롤러는 `ApiResponse.ok(...)` / `ApiResponse.created(...)` 를 반환한다.
+
+성공
+```json
+{ "success": true, "status": 200, "code": "SUCCESS",
+  "message": "...", "data": {}, "timestamp": "2026-07-10T12:30:00.123Z" }
+```
+
+실패
+```json
+{ "success": false, "status": 400, "code": "TEAM_ERROR_409_TEAM_FULL",
+  "message": "...", "path": "/api/teams/join",
+  "timestamp": "2026-07-10T12:30:00.123Z", "reasons": {} }
+```
+
+에러를 내려면 `ErrorCode` 에 상수를 추가하고 서비스에서 `throw new BusinessException(ErrorCode.XXX)` 한다.
+`GlobalExceptionHandler` 가 공통 포맷으로 변환한다. `code` 는 enum 이름을 그대로 쓴다.
+
+`reasons` 는 `@Valid` 검증 실패 시 `{ "필드명": "메시지" }` 로 채워진다.
 
 ## 환경변수
 
-로컬은 기본값으로 동작하므로 보통 `.env` 를 만들 필요가 없다.
-다음 경우에만 `.env.example` 를 복사해 `.env` 로 만든다.
-
-- 카카오·구글 소셜로그인을 로컬에서 테스트할 때 (클라이언트 키 필요)
-- 로컬 DB 비밀번호를 기본값(`hackathon`) 과 다르게 쓸 때
-
-배포(prod 프로파일)는 `DB_URL / DB_USERNAME / DB_PASSWORD / JWT_SECRET` 를 환경변수로 주입한다.
-prod 는 `JWT_SECRET` 이 없으면 부팅에 실패한다 (개발용 기본 시크릿이 운영에 새는 것을 막기 위함).
-
-JWT 시크릿 생성 (64바이트 난수 → 128자 hex):
-```powershell
-$b = New-Object byte[] 64; [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b); -join ($b | ForEach-Object { $_.ToString('x2') })
-```
+로컬은 기본값으로 동작한다. 배포(prod 프로파일)는 `DB_URL / DB_USERNAME / DB_PASSWORD` 를 환경변수로 주입한다.
 
 ## 배포
 
@@ -62,23 +77,6 @@ EC2 는 SSH 인바운드를 열지 않고 SSM 으로만 명령을 받는다.
 필요한 GitHub Actions Secrets: `DOCKERHUB_USERNAME` `DOCKERHUB_TOKEN`
 `AWS_ACCESS_KEY_ID` `AWS_SECRET_ACCESS_KEY` `AWS_REGION` `EC2_INSTANCE_ID`
 
-## 인증 (선택 기능)
+## 협업
 
-로그인은 **시간이 남으면 붙이는 선택 기능**이다. 지금은 코드가 들어 있지만 언제든 통째로 뺄 수 있게 격리해 두었다.
-그래서 **새 기능 코드는 로그인에 의존하지 않는다.** 사용자를 식별해야 하면 `userId` 를 요청 파라미터로 받고,
-엔티티에서 `User` 를 참조하지 않는다.
-
-붙여서 쓸 경우 회원가입 `POST /api/auth/signup`, 로그인 `POST /api/auth/login` 이 JWT 를 발급하고,
-`GET /api/users/me` 가 토큰으로 내 정보를 돌려준다. 카카오·구글 소셜로그인도 들어 있다
-(`.env` 에 클라이언트 키 필요).
-
-### 인증 제거
-
-아래만 지우면 나머지 코드는 그대로 돈다.
-
-1. `domain/auth/` 전체, `domain/user/` 전체
-2. `global/jwt/` 전체
-3. `SecurityConfig` 에서 `[AUTH]` 주석이 붙은 줄과 `AUTHENTICATED_PATHS` 배열
-4. `SwaggerConfig` 의 `SecurityScheme` / `SecurityRequirement` 설정
-5. `build.gradle` 의 `spring-boot-starter-security`, `jjwt-*` 의존성
-6. `.env` 의 `JWT_*`, `KAKAO_*`, `GOOGLE_*`
+`main` 에 직접 푸시하지 않는다. 브랜치를 파고 PR 을 연다.
