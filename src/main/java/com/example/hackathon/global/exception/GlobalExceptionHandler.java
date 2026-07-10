@@ -63,10 +63,7 @@ public class GlobalExceptionHandler {
                         request.getRequestURI(), Map.of()));
     }
 
-    /**
-     * 필수 요청 헤더 누락. 예: 미션 API 에 X-Device-Id 를 빠뜨림.
-     * 클라이언트 잘못이므로 400. 잡지 않으면 catch-all 이 500 으로 만든다.
-     */
+    /** 필수 요청 헤더가 없을 때. reasons 에 빠진 헤더명을 담아 400 으로 응답한다. */
     @ExceptionHandler(MissingRequestHeaderException.class)
     public ResponseEntity<ErrorResponse> handleMissingHeader(MissingRequestHeaderException e,
                                                              HttpServletRequest request) {
@@ -76,7 +73,7 @@ public class GlobalExceptionHandler {
                         Map.of(e.getHeaderName(), "필수 헤더입니다.")));
     }
 
-    /** 요청 본문을 읽지 못했다. 깨진 JSON, 빈 body, 잘못된 타입 등. 클라이언트 잘못이므로 400. */
+    /** 요청 본문을 파싱하지 못할 때(형식 오류, 빈 본문 등). 400 으로 응답한다. */
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ErrorResponse> handleUnreadableBody(HttpMessageNotReadableException e,
                                                               HttpServletRequest request) {
@@ -85,7 +82,7 @@ public class GlobalExceptionHandler {
                 .body(ErrorResponse.of(code, "요청 본문을 읽을 수 없습니다.", request.getRequestURI(), Map.of()));
     }
 
-    /** 경로/쿼리 파라미터 타입 불일치. 예: Long 자리에 문자열. 클라이언트 잘못이므로 400. */
+    /** 경로/쿼리 파라미터의 타입이 맞지 않을 때. 400 으로 응답한다. */
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<ErrorResponse> handleTypeMismatch(MethodArgumentTypeMismatchException e,
                                                             HttpServletRequest request) {
