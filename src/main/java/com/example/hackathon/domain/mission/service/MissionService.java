@@ -25,7 +25,6 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.util.*;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -34,8 +33,6 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class MissionService {
-
-    private static final long MISSION_DEADLINE_MINUTES = 10;
 
     private final UserRepository userRepository;
     private final MissionRepository missionRepository;
@@ -46,35 +43,34 @@ public class MissionService {
 
     @Transactional
     public MissionTodayResponse getOrCreateTodayMission(String deviceId) {
-        return getOrCreateTodayMission(deviceId, LocalDateTime.now(clock));
+        return MissionTodayResponse.from(getOrCreateTodayMissionLog(deviceId, LocalDateTime.now(clock)));
     }
 
-    private MissionTodayResponse getOrCreateTodayMission(String deviceId, LocalDateTime nowTime) {
-        // 1. 사용자 조회
+    private UserMissionLog getOrCreateTodayMissionLog(String deviceId, LocalDateTime nowTime) {
         User user = userRepository.findByDeviceId(deviceId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_ERROR_404_NOT_FOUND));
-
-        // 2. 디톡스 설정 시간 확인
         if (user.getDetoxStartTime() == null || user.getDetoxEndTime() == null) {
             throw new BusinessException(ErrorCode.MISSION_ERROR_400_DETOX_TIME_NOT_SET);
         }
+        LocalDate targetDate = MissionTargetDateResolver.resolve(user, nowTime);
+        return getOrCreateTodayMissionLog(user, targetDate, nowTime);
+    }
 
-        // 자정 넘김 고려한 targetDate 계산
-        LocalDate targetDate = calculateTargetDate(user, nowTime);
-
-        // 3. 디톡스 시작 시각 이전인지 확인
+    private UserMissionLog getOrCreateTodayMissionLog(
+            User user,
+            LocalDate targetDate,
+            LocalDateTime nowTime
+    ) {
         LocalDateTime detoxStartDateTime = LocalDateTime.of(targetDate, user.getDetoxStartTime());
         if (nowTime.isBefore(detoxStartDateTime)) {
             throw new BusinessException(ErrorCode.MISSION_ERROR_400_BEFORE_DETOX_START);
         }
 
-        // 4. 오늘 날짜의 DailyMission 조회 및 생성 (없을 시 생성)
         DailyMission dailyMission = getOrCreateDailyMission(targetDate);
-
-        // 5. 오늘 날짜의 USER_MISSION_LOG 조회 및 생성
         UserMissionLog log = userMissionLogRepository.findByUserIdAndTargetDate(user.getId(), targetDate)
                 .orElseGet(() -> {
-                    LocalDateTime deadlineDateTime = detoxStartDateTime.plusMinutes(MISSION_DEADLINE_MINUTES);
+                    LocalDateTime deadlineDateTime = detoxStartDateTime
+                            .plusMinutes(MissionTargetDateResolver.DEADLINE_MINUTES);
 
                     UserMissionLog newLog = UserMissionLog.builder()
                             .user(user)
@@ -91,10 +87,7 @@ public class MissionService {
                     );
                 });
 
-        // Lazy 실패 만료 처리 적용
-        log = checkAndExpireLog(log, nowTime);
-
-        return MissionTodayResponse.from(log);
+        return checkAndExpireLog(log, nowTime);
     }
 
     @Transactional
@@ -232,19 +225,6 @@ public class MissionService {
         }
     }
 
-    private LocalDate calculateTargetDate(User user, LocalDateTime now) {
-        LocalTime startTime = user.getDetoxStartTime();
-        LocalDate today = now.toLocalDate();
-
-        LocalDateTime yesterdayStart = LocalDateTime.of(today.minusDays(1), startTime);
-        LocalDateTime yesterdayDeadline = yesterdayStart.plusMinutes(MISSION_DEADLINE_MINUTES);
-
-        if (now.isBefore(yesterdayDeadline)) {
-            return today.minusDays(1);
-        }
-        return today;
-    }
-
     private UserMissionLog checkAndExpireLog(UserMissionLog log, LocalDateTime now) {
         if (now.isAfter(log.getDeadlineAt()) && 
             (log.getStatus() == MissionStatus.ASSIGNED || log.getStatus() == MissionStatus.CONFIRMED)) {
@@ -262,13 +242,9 @@ public class MissionService {
             throw new BusinessException(ErrorCode.MISSION_ERROR_400_DETOX_TIME_NOT_SET);
         }
 
-        LocalDate targetDate = calculateTargetDate(user, now);
+        LocalDate targetDate = MissionTargetDateResolver.resolve(user, now);
         UserMissionLog log = userMissionLogRepository.findByUserIdAndTargetDate(user.getId(), targetDate)
-                .orElseGet(() -> {
-                    MissionTodayResponse todayResponse = getOrCreateTodayMission(deviceId, now);
-                    return userMissionLogRepository.findById(todayResponse.missionLogId())
-                            .orElseThrow(() -> new BusinessException(ErrorCode.MISSION_ERROR_404_NOT_FOUND));
-                });
+                .orElseGet(() -> getOrCreateTodayMissionLog(user, targetDate, now));
 
         return checkAndExpireLog(log, now);
     }
