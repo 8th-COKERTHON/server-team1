@@ -27,6 +27,9 @@ public class Mission {
     @Column(nullable = false, length = 30)
     private Difficulty difficulty;
 
+    @Column(name = "is_active", nullable = false)
+    private boolean isActive = true;
+
     @CreationTimestamp
     @Column(updatable = false)
     private LocalDateTime createdAt;
@@ -35,8 +38,9 @@ public class Mission {
     private LocalDateTime updatedAt;
 
     @Builder
-    private Mission(String title, Difficulty difficulty) {
+    private Mission(String title, Difficulty difficulty, Boolean isActive) {
         this.title = title;
         this.difficulty = difficulty;
+        this.isActive = isActive != null ? isActive : true;
     }
 }
