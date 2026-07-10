@@ -1,9 +1,11 @@
 package com.example.hackathon.domain.mission.service;
 
 import com.example.hackathon.domain.mission.dto.response.MissionTodayResponse;
+import com.example.hackathon.domain.mission.entity.DailyMission;
 import com.example.hackathon.domain.mission.entity.Mission;
 import com.example.hackathon.domain.mission.entity.MissionStatus;
 import com.example.hackathon.domain.mission.entity.UserMissionLog;
+import com.example.hackathon.domain.mission.repository.DailyMissionRepository;
 import com.example.hackathon.domain.mission.repository.MissionRepository;
 import com.example.hackathon.domain.mission.repository.UserMissionLogRepository;
 import com.example.hackathon.domain.user.entity.User;
@@ -11,8 +13,8 @@ import com.example.hackathon.domain.user.repository.UserRepository;
 import com.example.hackathon.global.exception.BusinessException;
 import com.example.hackathon.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
@@ -25,6 +27,7 @@ public class MissionService {
 
     private final UserRepository userRepository;
     private final MissionRepository missionRepository;
+    private final DailyMissionRepository dailyMissionRepository;
     private final UserMissionLogRepository userMissionLogRepository;
 
     @Transactional
@@ -44,21 +47,20 @@ public class MissionService {
             throw new BusinessException(ErrorCode.MISSION_ERROR_400_BEFORE_DETOX_START);
         }
 
-        // 4. 오늘 날짜의 USER_MISSION_LOG 조회
+        // 4. 오늘 날짜의 DailyMission 조회 및 생성 (없을 시 생성)
+        DailyMission dailyMission = getOrCreateDailyMission(todayDate);
+
+        // 5. 오늘 날짜의 USER_MISSION_LOG 조회 및 생성
         return userMissionLogRepository.findByUserIdAndTargetDate(user.getId(), todayDate)
                 .map(MissionTodayResponse::from)
                 .orElseGet(() -> {
-                    // 5. 오늘 미션이 존재하지 않으면 신규 생성
-                    Mission mission = missionRepository.findFirstByOrderByIdAsc()
-                            .orElseThrow(() -> new BusinessException(ErrorCode.MISSION_ERROR_500_NO_MISSION_DATA));
-
                     LocalDateTime deadlineDateTime = detoxStartDateTime.plusMinutes(10);
 
                     UserMissionLog newLog = UserMissionLog.builder()
                             .user(user)
-                            .mission(mission)
+                            .dailyMission(dailyMission)
                             .targetDate(todayDate)
-                            .status(MissionStatus.PENDING)
+                            .status(MissionStatus.ASSIGNED)
                             .assignedAt(detoxStartDateTime)
                             .deadlineAt(deadlineDateTime)
                             .build();
@@ -69,6 +71,26 @@ public class MissionService {
                     } catch (DataIntegrityViolationException e) {
                         return userMissionLogRepository.findByUserIdAndTargetDate(user.getId(), todayDate)
                                 .map(MissionTodayResponse::from)
+                                .orElseThrow(() -> e);
+                    }
+                });
+    }
+
+    private DailyMission getOrCreateDailyMission(LocalDate todayDate) {
+        return dailyMissionRepository.findByTargetDate(todayDate)
+                .orElseGet(() -> {
+                    Mission mission = missionRepository.findFirstByIsActiveTrueOrderByIdAsc()
+                            .orElseThrow(() -> new BusinessException(ErrorCode.MISSION_ERROR_500_NO_MISSION_DATA));
+
+                    DailyMission newDaily = DailyMission.builder()
+                            .mission(mission)
+                            .targetDate(todayDate)
+                            .build();
+
+                    try {
+                        return dailyMissionRepository.save(newDaily);
+                    } catch (DataIntegrityViolationException e) {
+                        return dailyMissionRepository.findByTargetDate(todayDate)
                                 .orElseThrow(() -> e);
                     }
                 });

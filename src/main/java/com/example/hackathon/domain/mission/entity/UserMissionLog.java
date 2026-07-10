@@ -35,8 +35,11 @@ public class UserMissionLog {
     private User user;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "mission_id", nullable = false)
-    private Mission mission;
+    @JoinColumn(name = "daily_mission_id", nullable = false)
+    private DailyMission dailyMission;
+
+    @Column(name = "team_id")
+    private Long teamId;
 
     @Column(name = "target_date", nullable = false)
     private LocalDate targetDate;
@@ -57,6 +60,9 @@ public class UserMissionLog {
     @Column(name = "completed_at")
     private LocalDateTime completedAt;
 
+    @Column(name = "retry_count", nullable = false)
+    private int retryCount = 0;
+
     @Column(name = "image_url", length = 512)
     private String imageUrl;
 
@@ -69,10 +75,13 @@ public class UserMissionLog {
     private LocalDateTime updatedAt;
 
     @Builder
-    private UserMissionLog(User user, Mission mission, LocalDate targetDate, MissionStatus status,
+    private UserMissionLog(User user, DailyMission dailyMission, Long teamId, Integer retryCount,
+                           LocalDate targetDate, MissionStatus status,
                            LocalDateTime assignedAt, LocalDateTime deadlineAt) {
         this.user = user;
-        this.mission = mission;
+        this.dailyMission = dailyMission;
+        this.teamId = teamId;
+        this.retryCount = retryCount != null ? retryCount : 0;
         this.targetDate = targetDate;
         this.status = status;
         this.assignedAt = assignedAt;

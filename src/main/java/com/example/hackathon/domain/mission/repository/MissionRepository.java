@@ -7,5 +7,5 @@ import java.util.Optional;
 
 public interface MissionRepository extends JpaRepository<Mission, Long> {
 
-    Optional<Mission> findFirstByOrderByIdAsc();
+    Optional<Mission> findFirstByIsActiveTrueOrderByIdAsc();
 }

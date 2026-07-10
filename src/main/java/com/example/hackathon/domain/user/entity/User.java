@@ -36,6 +36,12 @@ public class User {
     @Column(nullable = false)
     private LocalTime detoxEndTime;
 
+    @Column(name = "personal_stage")
+    private Integer personalStage;
+
+    @Column(name = "personal_bricks", nullable = false)
+    private int personalBricks = 0;
+
     @CreationTimestamp
     @Column(updatable = false)
     private LocalDateTime createdAt;
