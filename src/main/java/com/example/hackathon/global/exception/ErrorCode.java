@@ -32,7 +32,6 @@ public enum ErrorCode {
     IMAGE_ERROR_400_EMPTY_FILE(HttpStatus.BAD_REQUEST, "이미지 파일이 비어 있습니다."),
     IMAGE_ERROR_400_SIZE_EXCEEDED(HttpStatus.BAD_REQUEST, "이미지 파일은 10MB를 초과할 수 없습니다."),
     IMAGE_ERROR_500_UPLOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "이미지 업로드에 실패했습니다."),
-    IMAGE_ERROR_500_PRESIGNED_URL_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "이미지 업로드 URL 발급에 실패했습니다."),
 
     // 미션
     MISSION_ERROR_400_BEFORE_DETOX_START(HttpStatus.BAD_REQUEST, "디톡스 시작 시간 이전입니다."),
