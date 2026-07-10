@@ -6,9 +6,14 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 
+/**
+ * 로그인이 없다. 앱이 생성한 device_id 로 사용자를 식별한다.
+ */
 @Entity
 @Table(name = "users")
 @Getter
@@ -19,38 +24,35 @@ public class User {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, unique = true)
-    private String email;
+    @Column(nullable = false, unique = true, length = 255)
+    private String deviceId;
 
-    // 소셜 로그인 유저는 비밀번호가 없다 (null)
-    private String password;
-
-    @Column(nullable = false)
+    @Column(nullable = false, length = 30)
     private String nickname;
 
-    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private Provider provider;
+    private LocalTime detoxStartTime;
 
-    // 소셜 로그인 제공자 고유 ID (LOCAL 은 null)
-    private String providerId;
-
-    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private Role role;
+    private LocalTime detoxEndTime;
 
     @CreationTimestamp
     @Column(updatable = false)
     private LocalDateTime createdAt;
 
+    @UpdateTimestamp
+    private LocalDateTime updatedAt;
+
     @Builder
-    private User(String email, String password, String nickname,
-                 Provider provider, String providerId, Role role) {
-        this.email = email;
-        this.password = password;
+    private User(String deviceId, String nickname, LocalTime detoxStartTime, LocalTime detoxEndTime) {
+        this.deviceId = deviceId;
         this.nickname = nickname;
-        this.provider = provider;
-        this.providerId = providerId;
-        this.role = role;
+        this.detoxStartTime = detoxStartTime;
+        this.detoxEndTime = detoxEndTime;
+    }
+
+    public void updateDetoxTime(LocalTime startTime, LocalTime endTime) {
+        this.detoxStartTime = startTime;
+        this.detoxEndTime = endTime;
     }
 }
