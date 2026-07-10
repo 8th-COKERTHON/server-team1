@@ -68,13 +68,15 @@ class S3StorageServiceTest {
 
     @Test
     void uploadReturnsUrlWithConfiguredRegion() {
+        storageService = new S3StorageService(s3Client, new S3Properties(
+                "us-west-2", new S3Properties.S3("test-bucket", "access", "secret", 300)));
         when(s3Client.putObject(any(PutObjectRequest.class), any(software.amazon.awssdk.core.sync.RequestBody.class)))
                 .thenReturn(PutObjectResponse.builder().build());
         MockMultipartFile image = new MockMultipartFile("image", "proof.jpg", "image/jpeg", new byte[]{1});
 
         String imageUrl = storageService.uploadMissionImage(15L, image);
 
-        assertThat(imageUrl).startsWith("https://test-bucket.s3.ap-northeast-2.amazonaws.com/mission/15/")
+        assertThat(imageUrl).startsWith("https://test-bucket.s3.us-west-2.amazonaws.com/mission/15/")
                 .endsWith(".jpg");
     }
 
