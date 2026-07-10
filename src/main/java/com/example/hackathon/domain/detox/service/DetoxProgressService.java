@@ -78,7 +78,7 @@ public class DetoxProgressService {
     private UserMissionLog findCurrentMissionLog(User user, LocalDate today) {
         return userMissionLogRepository.findByUserIdAndTargetDate(user.getId(), today)
                 .orElseGet(() -> {
-                    if (!user.getDetoxEndTime().isAfter(user.getDetoxStartTime())) {
+                    if (crossesMidnight(user.getDetoxStartTime(), user.getDetoxEndTime())) {
                         return userMissionLogRepository
                                 .findByUserIdAndTargetDate(user.getId(), today.minusDays(1))
                                 .orElseThrow(() -> new BusinessException(ErrorCode.MISSION_ERROR_404_NOT_FOUND));
@@ -140,10 +140,14 @@ public class DetoxProgressService {
         return now.isBefore(period.start()) ? BEFORE_START_TITLE : FINISHED_TITLE;
     }
 
+    private static boolean crossesMidnight(LocalTime startTime, LocalTime endTime) {
+        return !endTime.isAfter(startTime);
+    }
+
     private record DetoxPeriod(LocalDateTime start, LocalDateTime end) {
 
         private static DetoxPeriod of(LocalDate targetDate, LocalTime startTime, LocalTime endTime) {
-            LocalDate endDate = endTime.isAfter(startTime) ? targetDate : targetDate.plusDays(1);
+            LocalDate endDate = crossesMidnight(startTime, endTime) ? targetDate.plusDays(1) : targetDate;
             return new DetoxPeriod(
                     LocalDateTime.of(targetDate, startTime),
                     LocalDateTime.of(endDate, endTime)
