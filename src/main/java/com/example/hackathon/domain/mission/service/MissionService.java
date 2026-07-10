@@ -14,11 +14,15 @@ import com.example.hackathon.global.exception.BusinessException;
 import com.example.hackathon.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.*;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -29,6 +33,7 @@ public class MissionService {
     private final MissionRepository missionRepository;
     private final DailyMissionRepository dailyMissionRepository;
     private final UserMissionLogRepository userMissionLogRepository;
+    private final DailyMissionTransactionService transactionService;
 
     @Transactional
     public MissionTodayResponse getOrCreateTodayMission(String deviceId, LocalDate todayDate, LocalDateTime nowTime) {
@@ -65,34 +70,81 @@ public class MissionService {
                             .deadlineAt(deadlineDateTime)
                             .build();
 
-                    try {
-                        UserMissionLog savedLog = userMissionLogRepository.save(newLog);
-                        return MissionTodayResponse.from(savedLog);
-                    } catch (DataIntegrityViolationException e) {
-                        return userMissionLogRepository.findByUserIdAndTargetDate(user.getId(), todayDate)
-                                .map(MissionTodayResponse::from)
-                                .orElseThrow(() -> e);
-                    }
+                    UserMissionLog savedLog = saveOrFetchExisting(
+                            () -> transactionService.saveUserMissionLog(newLog),
+                            () -> userMissionLogRepository.findByUserIdAndTargetDate(user.getId(), todayDate)
+                    );
+                    return MissionTodayResponse.from(savedLog);
                 });
     }
 
     private DailyMission getOrCreateDailyMission(LocalDate todayDate) {
         return dailyMissionRepository.findByTargetDate(todayDate)
                 .orElseGet(() -> {
-                    Mission mission = missionRepository.findFirstByIsActiveTrueOrderByIdAsc()
-                            .orElseThrow(() -> new BusinessException(ErrorCode.MISSION_ERROR_500_NO_MISSION_DATA));
+                    Mission mission = selectRandomActiveMission(todayDate);
 
                     DailyMission newDaily = DailyMission.builder()
                             .mission(mission)
                             .targetDate(todayDate)
                             .build();
 
-                    try {
-                        return dailyMissionRepository.save(newDaily);
-                    } catch (DataIntegrityViolationException e) {
-                        return dailyMissionRepository.findByTargetDate(todayDate)
-                                .orElseThrow(() -> e);
-                    }
+                    return saveOrFetchExisting(
+                            () -> transactionService.saveDailyMission(newDaily),
+                            () -> dailyMissionRepository.findByTargetDate(todayDate)
+                    );
                 });
+    }
+
+    private Mission selectRandomActiveMission(LocalDate todayDate) {
+        List<Mission> activeMissions = missionRepository.findAllByIsActiveTrue();
+        if (activeMissions.isEmpty()) {
+            throw new BusinessException(ErrorCode.MISSION_ERROR_404_ACTIVE_NOT_FOUND);
+        }
+
+        int m = activeMissions.size();
+
+        // targetDate 이전 최근 M개의 DailyMission을 가져온다.
+        List<DailyMission> recentDailyMissions = dailyMissionRepository
+                .findByTargetDateBeforeOrderByTargetDateDesc(todayDate, PageRequest.of(0, m));
+
+        Set<Long> activeMissionIds = activeMissions.stream()
+                .map(Mission::getId)
+                .collect(Collectors.toSet());
+
+        Set<Long> usedMissionIds = recentDailyMissions.stream()
+                .map(dm -> dm.getMission().getId())
+                .filter(activeMissionIds::contains)
+                .collect(Collectors.toSet());
+
+        Long lastMissionId = recentDailyMissions.isEmpty() ? null : recentDailyMissions.get(0).getMission().getId();
+
+        List<Mission> candidates;
+        if (usedMissionIds.size() < m) {
+            // 현재 순환에서 아직 사용되지 않은 활성 미션들 중 선택
+            candidates = activeMissions.stream()
+                    .filter(mission -> !usedMissionIds.contains(mission.getId()))
+                    .collect(Collectors.toList());
+        } else {
+            // 모든 활성 미션이 소진되어 새로운 순환 시작
+            candidates = new ArrayList<>(activeMissions);
+        }
+
+        // 직전 날짜의 미션은 활성 미션이 2개 이상일 때 후보에서 제외
+        if (candidates.size() >= 2 && lastMissionId != null) {
+            candidates.removeIf(mission -> mission.getId().equals(lastMissionId));
+        }
+
+        // 남은 후보 중 랜덤 선택
+        int randomIndex = java.util.concurrent.ThreadLocalRandom.current().nextInt(candidates.size());
+        return candidates.get(randomIndex);
+    }
+
+    private <T> T saveOrFetchExisting(Supplier<T> saveOperation, Supplier<Optional<T>> fetchOperation) {
+        try {
+            return saveOperation.get();
+        } catch (DataIntegrityViolationException e) {
+            return fetchOperation.get()
+                    .orElseThrow(() -> e);
+        }
     }
 }
