@@ -69,8 +69,17 @@ public class MissionService {
         DailyMission dailyMission = getOrCreateDailyMission(targetDate);
         UserMissionLog log = userMissionLogRepository.findByUserIdAndTargetDate(user.getId(), targetDate)
                 .orElseGet(() -> {
+                    LocalDateTime detoxEndDateTime = LocalDateTime.of(targetDate, user.getDetoxEndTime());
+                    if (!detoxEndDateTime.isAfter(detoxStartDateTime)) {
+                        detoxEndDateTime = detoxEndDateTime.plusDays(1); // 자정 넘김 처리
+                    }
+
                     LocalDateTime deadlineDateTime = detoxStartDateTime
                             .plusMinutes(MissionTargetDateResolver.DEADLINE_MINUTES);
+
+                    if (detoxEndDateTime.isBefore(deadlineDateTime)) {
+                        deadlineDateTime = detoxEndDateTime; // 1분 등 단기 디톡스 설정 시 디톡스 종료 시각으로 타이머 단축
+                    }
 
                     UserMissionLog newLog = UserMissionLog.builder()
                             .user(user)

@@ -20,6 +20,12 @@ public record MissionTodayResponse(
         Boolean popupRequired
 ) {
     public static MissionTodayResponse from(UserMissionLog log) {
+        java.time.LocalDateTime now = java.time.LocalDateTime.now(java.time.ZoneId.of("Asia/Seoul"));
+        boolean popupRequired = !now.isBefore(log.getAssignedAt())
+                && now.isBefore(log.getDeadlineAt())
+                && (log.getStatus() == com.example.hackathon.domain.mission.entity.MissionStatus.ASSIGNED
+                    || log.getStatus() == com.example.hackathon.domain.mission.entity.MissionStatus.CONFIRMED);
+
         return new MissionTodayResponse(
                 log.getId(),
                 log.getDailyMission().getMission().getId(),
@@ -30,7 +36,7 @@ public record MissionTodayResponse(
                 log.getAssignedAt(),
                 log.getPopupShownAt(),
                 log.getDeadlineAt(),
-                log.getPopupShownAt() == null
+                popupRequired
         );
     }
 }
