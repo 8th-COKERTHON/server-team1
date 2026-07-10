@@ -13,6 +13,7 @@ import com.example.hackathon.domain.team.entity.TeamMember;
 import com.example.hackathon.domain.team.repository.TeamMemberRepository;
 import com.example.hackathon.domain.team.repository.TeamRepository;
 import com.example.hackathon.domain.user.dto.response.UserHomeResponse;
+import com.example.hackathon.domain.user.dto.response.UserResponse;
 import com.example.hackathon.domain.user.entity.DailySettlementLog;
 import com.example.hackathon.domain.user.entity.User;
 import com.example.hackathon.domain.user.repository.DailySettlementLogRepository;
@@ -170,5 +171,35 @@ class UserServiceTest {
                 com.example.hackathon.global.exception.BusinessException.class,
                 () -> userService.getHomeData(user.getId())
         );
+    }
+
+    @Test
+    @DisplayName("유저 상세 조회 시 등록 정보가 정상 반환된다")
+    void getUserDetailsSuccess() {
+        // given
+        User user = createUser("길동", "test@test.com");
+        
+        // when
+        UserResponse response = userService.getUser(user.getId());
+        
+        // then
+        assertThat(response.id()).isEqualTo(user.getId());
+        assertThat(response.nickname()).isEqualTo("길동");
+        assertThat(response.email()).isEqualTo("test@test.com");
+        assertThat(response.emailNotificationEnabled()).isTrue();
+    }
+
+    @Test
+    @DisplayName("알림 토글 API 호출 시 수신동의 플래그가 정상 업데이트된다")
+    void updateNotificationSettingSuccess() {
+        // given
+        User user = createUser("길동", "test@test.com");
+        
+        // when
+        userService.updateNotificationSetting(user.getId(), false);
+        
+        // then
+        User updated = userRepository.findById(user.getId()).orElseThrow();
+        assertThat(updated.isEmailNotificationEnabled()).isFalse();
     }
 }

@@ -127,4 +127,8 @@ public class User {
     public void updateLastSettlementDate(LocalDate date) {
         this.lastSettlementDate = date;
     }
+
+    public void updateEmailNotificationEnabled(boolean enabled) {
+        this.emailNotificationEnabled = enabled;
+    }
 }
