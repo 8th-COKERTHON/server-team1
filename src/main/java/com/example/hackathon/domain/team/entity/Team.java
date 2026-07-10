@@ -34,6 +34,9 @@ public class Team {
     @Column(nullable = false)
     private int totalBricks;
 
+    @Column(nullable = false)
+    private int stage = 1;
+
     @CreationTimestamp
     @Column(updatable = false)
     private LocalDateTime createdAt;
@@ -46,5 +49,6 @@ public class Team {
         this.name = name;
         this.inviteCode = inviteCode;
         this.totalBricks = INITIAL_BRICKS;
+        this.stage = 1;
     }
 }
