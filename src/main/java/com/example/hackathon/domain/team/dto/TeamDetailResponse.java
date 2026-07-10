@@ -10,6 +10,7 @@ public record TeamDetailResponse(
         String teamName,
         String inviteCode,
         int totalBricks,
+        int stage,
         List<Member> members
 ) {
     public record Member(Long userId, String nickname) {
@@ -24,6 +25,7 @@ public record TeamDetailResponse(
                 team.getName(),
                 team.getInviteCode(),
                 team.getTotalBricks(),
+                team.getStage(),
                 members.stream().map(Member::from).toList()
         );
     }

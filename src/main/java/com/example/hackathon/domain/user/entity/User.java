@@ -10,10 +10,11 @@ import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.ArrayList;
+import java.util.List;
 
-/**
- * 로그인이 없다. 앱이 생성한 device_id 로 사용자를 식별한다.
- */
+
+
 @Entity
 @Table(name = "users")
 @Getter
@@ -48,6 +49,8 @@ public class User {
 
     @UpdateTimestamp
     private LocalDateTime updatedAt;
+
+
 
     @Builder
     private User(String deviceId, String nickname, LocalTime detoxStartTime, LocalTime detoxEndTime) {
