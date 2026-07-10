@@ -23,8 +23,8 @@ public enum ErrorCode {
 
     // 팀
     TEAM_ERROR_404_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 팀입니다."),
-    TEAM_ERROR_404_INVALID_INVITE_CODE(HttpStatus.NOT_FOUND, "유효하지 않은 초대코드입니다."),
-    TEAM_ERROR_409_TEAM_FULL(HttpStatus.CONFLICT, "팀 정원이 가득 찼습니다."),
+    TEAM_ERROR_404_INVALID_INVITE_CODE(HttpStatus.NOT_FOUND, "초대코드를 잘못 입력하였습니다."),
+    TEAM_ERROR_409_TEAM_FULL(HttpStatus.CONFLICT, "방 인원이 초과되었어요."),
     TEAM_ERROR_409_ALREADY_IN_TEAM(HttpStatus.CONFLICT, "이미 참여한 팀입니다."),
 
     // 이미지
