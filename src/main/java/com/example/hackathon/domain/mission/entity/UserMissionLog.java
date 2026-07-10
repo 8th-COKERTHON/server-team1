@@ -87,4 +87,46 @@ public class UserMissionLog {
         this.assignedAt = assignedAt;
         this.deadlineAt = deadlineAt;
     }
+
+    public void showPopup(LocalDateTime time) {
+        if (this.popupShownAt == null) {
+            this.popupShownAt = time;
+        }
+    }
+
+    public void updateStatus(MissionStatus targetStatus) {
+        validateStatusTransition(this.status, targetStatus);
+        this.status = targetStatus;
+    }
+
+    private void validateStatusTransition(MissionStatus current, MissionStatus target) {
+        if (current == target) {
+            return;
+        }
+        if (current == MissionStatus.FAILED) {
+            throw new com.example.hackathon.global.exception.BusinessException(
+                com.example.hackathon.global.exception.ErrorCode.MISSION_ERROR_400_ALREADY_FAILED
+            );
+        }
+        if (current == MissionStatus.SUCCESS) {
+            throw new com.example.hackathon.global.exception.BusinessException(
+                com.example.hackathon.global.exception.ErrorCode.MISSION_ERROR_400_ALREADY_COMPLETED
+            );
+        }
+        
+        if (current == MissionStatus.ASSIGNED) {
+            if (target == MissionStatus.CONFIRMED || target == MissionStatus.FAILED || target == MissionStatus.SUCCESS) {
+                return;
+            }
+        }
+        if (current == MissionStatus.CONFIRMED) {
+            if (target == MissionStatus.FAILED || target == MissionStatus.SUCCESS) {
+                return;
+            }
+        }
+        
+        throw new com.example.hackathon.global.exception.BusinessException(
+            com.example.hackathon.global.exception.ErrorCode.MISSION_ERROR_400_INVALID_TRANSITION
+        );
+    }
 }

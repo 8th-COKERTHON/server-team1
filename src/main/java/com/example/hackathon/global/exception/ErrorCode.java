@@ -37,7 +37,11 @@ public enum ErrorCode {
     MISSION_ERROR_500_NO_MISSION_DATA(HttpStatus.INTERNAL_SERVER_ERROR, "미션 데이터가 존재하지 않습니다."),
     MISSION_ERROR_404_ACTIVE_NOT_FOUND(HttpStatus.NOT_FOUND, "활성화된 미션이 존재하지 않습니다."),
     MISSION_ERROR_409_CONFLICT(HttpStatus.CONFLICT, "오늘 미션 생성 중 중복 데이터가 발생했습니다."),
-    MISSION_ERROR_404_NOT_FOUND(HttpStatus.NOT_FOUND, "미션 데이터가 존재하지 않습니다.");
+    MISSION_ERROR_404_NOT_FOUND(HttpStatus.NOT_FOUND, "미션 데이터가 존재하지 않습니다."),
+    MISSION_ERROR_400_DEADLINE_EXCEEDED(HttpStatus.BAD_REQUEST, "미션 제한 시간을 초과했습니다."),
+    MISSION_ERROR_400_ALREADY_COMPLETED(HttpStatus.BAD_REQUEST, "이미 성공한 미션입니다."),
+    MISSION_ERROR_400_ALREADY_FAILED(HttpStatus.BAD_REQUEST, "이미 실패한 미션입니다."),
+    MISSION_ERROR_400_INVALID_TRANSITION(HttpStatus.BAD_REQUEST, "잘못된 상태 전이입니다.");
 
     private final HttpStatus status;
     private final String message;
