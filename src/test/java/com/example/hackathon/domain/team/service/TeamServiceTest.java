@@ -31,7 +31,7 @@ class TeamServiceTest {
     private User newUser() {
         return userRepository.save(User.builder()
                 .deviceId(UUID.randomUUID().toString())
-                .nickname("tester")
+                .nickname("test")
                 .detoxStartTime(LocalTime.of(21, 0))
                 .detoxEndTime(LocalTime.of(23, 0))
                 .build());
