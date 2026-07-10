@@ -1,5 +1,6 @@
 package com.example.hackathon.domain.user.entity;
 
+import com.example.hackathon.domain.team.entity.UserTeam;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -10,10 +11,11 @@ import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.ArrayList;
+import java.util.List;
 
-/**
- * 로그인이 없다. 앱이 생성한 device_id 로 사용자를 식별한다.
- */
+
+
 @Entity
 @Table(name = "users")
 @Getter
@@ -49,6 +51,10 @@ public class User {
     @UpdateTimestamp
     private LocalDateTime updatedAt;
 
+    // 팀 참여 관계 (1:N)
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<UserTeam> userTeams = new ArrayList<>();
+
     @Builder
     private User(String deviceId, String nickname, LocalTime detoxStartTime, LocalTime detoxEndTime) {
         this.deviceId = deviceId;
@@ -60,5 +66,10 @@ public class User {
     public void updateDetoxTime(LocalTime startTime, LocalTime endTime) {
         this.detoxStartTime = startTime;
         this.detoxEndTime = endTime;
+    }
+
+    // 팀 추가 편의 메서드
+    public void addUserTeam(UserTeam userTeam) {
+        this.userTeams.add(userTeam);
     }
 }
