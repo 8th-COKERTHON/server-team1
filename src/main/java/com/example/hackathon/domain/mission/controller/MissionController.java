@@ -15,7 +15,6 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 
@@ -33,10 +32,9 @@ public class MissionController {
             @RequestHeader("X-Device-Id") String deviceId
     ) {
         ZoneId seoulZone = ZoneId.of("Asia/Seoul");
-        LocalDate todayDate = LocalDate.now(seoulZone);
         LocalDateTime now = LocalDateTime.now(seoulZone);
 
-        MissionTodayResponse response = missionService.getOrCreateTodayMission(deviceId, todayDate, now);
+        MissionTodayResponse response = missionService.getOrCreateTodayMission(deviceId, now);
         return ApiResponse.ok("오늘의 미션 조회 성공", response);
     }
 

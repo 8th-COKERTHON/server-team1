@@ -22,6 +22,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -42,7 +43,7 @@ public class MissionService {
     private final Clock clock;
 
     @Transactional
-    public MissionTodayResponse getOrCreateTodayMission(String deviceId, LocalDate inputDate, LocalDateTime nowTime) {
+    public MissionTodayResponse getOrCreateTodayMission(String deviceId, LocalDateTime nowTime) {
         // 1. 사용자 조회
         User user = userRepository.findByDeviceId(deviceId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_ERROR_404_NOT_FOUND));
@@ -104,7 +105,7 @@ public class MissionService {
 
         UserMissionLog log = userMissionLogRepository.findByUserIdAndTargetDate(user.getId(), targetDate)
                 .orElseGet(() -> {
-                    MissionTodayResponse todayResponse = getOrCreateTodayMission(deviceId, targetDate, now);
+                    MissionTodayResponse todayResponse = getOrCreateTodayMission(deviceId, now);
                     return userMissionLogRepository.findById(todayResponse.missionLogId())
                             .orElseThrow(() -> new BusinessException(ErrorCode.MISSION_ERROR_404_NOT_FOUND));
                 });
@@ -113,12 +114,10 @@ public class MissionService {
         log = checkAndExpireLog(log, now);
 
         boolean expired = now.isAfter(log.getDeadlineAt());
-        long remainingSeconds = Math.max(java.time.Duration.between(now, log.getDeadlineAt()).getSeconds(), 0);
+        long remainingSeconds = calculateRemainingSeconds(log, now);
 
         // popupRequired 판단 조건
-        boolean popupRequired = !now.isBefore(log.getAssignedAt()) 
-                && now.isBefore(log.getDeadlineAt()) 
-                && (log.getStatus() == MissionStatus.ASSIGNED || log.getStatus() == MissionStatus.CONFIRMED);
+        boolean popupRequired = isPopupRequired(log, now);
 
         return MissionTodayStatusResponse.of(log, popupRequired, remainingSeconds, expired);
     }
@@ -137,7 +136,7 @@ public class MissionService {
 
         UserMissionLog log = userMissionLogRepository.findByUserIdAndTargetDate(user.getId(), targetDate)
                 .orElseGet(() -> {
-                    MissionTodayResponse todayResponse = getOrCreateTodayMission(deviceId, targetDate, now);
+                    MissionTodayResponse todayResponse = getOrCreateTodayMission(deviceId, now);
                     return userMissionLogRepository.findById(todayResponse.missionLogId())
                             .orElseThrow(() -> new BusinessException(ErrorCode.MISSION_ERROR_404_NOT_FOUND));
                 });
@@ -160,10 +159,8 @@ public class MissionService {
         log.showPopup(now);
         userMissionLogRepository.save(log);
 
-        long remainingSeconds = Math.max(java.time.Duration.between(now, log.getDeadlineAt()).getSeconds(), 0);
-        boolean popupRequired = !now.isBefore(log.getAssignedAt()) 
-                && now.isBefore(log.getDeadlineAt()) 
-                && (log.getStatus() == MissionStatus.ASSIGNED || log.getStatus() == MissionStatus.CONFIRMED);
+        long remainingSeconds = calculateRemainingSeconds(log, now);
+        boolean popupRequired = isPopupRequired(log, now);
 
         return MissionPopupResponse.of(log, remainingSeconds, popupRequired);
     }
@@ -182,7 +179,7 @@ public class MissionService {
 
         UserMissionLog log = userMissionLogRepository.findByUserIdAndTargetDate(user.getId(), targetDate)
                 .orElseGet(() -> {
-                    MissionTodayResponse todayResponse = getOrCreateTodayMission(deviceId, targetDate, now);
+                    MissionTodayResponse todayResponse = getOrCreateTodayMission(deviceId, now);
                     return userMissionLogRepository.findById(todayResponse.missionLogId())
                             .orElseThrow(() -> new BusinessException(ErrorCode.MISSION_ERROR_404_NOT_FOUND));
                 });
@@ -205,7 +202,7 @@ public class MissionService {
         log.updateStatus(MissionStatus.CONFIRMED);
         userMissionLogRepository.save(log);
 
-        long remainingSeconds = Math.max(java.time.Duration.between(now, log.getDeadlineAt()).getSeconds(), 0);
+        long remainingSeconds = calculateRemainingSeconds(log, now);
 
         return MissionConfirmResponse.of(log, remainingSeconds);
     }
@@ -300,5 +297,15 @@ public class MissionService {
             userMissionLogRepository.save(log);
         }
         return log;
+    }
+
+    private long calculateRemainingSeconds(UserMissionLog log, LocalDateTime now) {
+        return Math.max(Duration.between(now, log.getDeadlineAt()).getSeconds(), 0);
+    }
+
+    private boolean isPopupRequired(UserMissionLog log, LocalDateTime now) {
+        return !now.isBefore(log.getAssignedAt())
+                && now.isBefore(log.getDeadlineAt())
+                && (log.getStatus() == MissionStatus.ASSIGNED || log.getStatus() == MissionStatus.CONFIRMED);
     }
 }
