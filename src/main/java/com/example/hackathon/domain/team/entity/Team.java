@@ -20,7 +20,6 @@ public class Team {
     public static final int MAX_MEMBERS = 4;
 
     private static final int INITIAL_BRICKS = 0;
-    private static final int INITIAL_STAGE = 1;
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -35,10 +34,6 @@ public class Team {
     @Column(nullable = false)
     private int totalBricks;
 
-    /** 건물 단계. 1단계부터 시작한다. */
-    @Column(nullable = false)
-    private int stage;
-
     @CreationTimestamp
     @Column(updatable = false)
     private LocalDateTime createdAt;
@@ -51,6 +46,5 @@ public class Team {
         this.name = name;
         this.inviteCode = inviteCode;
         this.totalBricks = INITIAL_BRICKS;
-        this.stage = INITIAL_STAGE;
     }
 }
