@@ -99,6 +99,18 @@ public class UserMissionLog {
         this.status = targetStatus;
     }
 
+    public void certify(String imageUrl, LocalDateTime completedAt) {
+        updateStatus(MissionStatus.SUCCESS);
+        this.imageUrl = imageUrl;
+        if (this.completedAt == null) {
+            this.completedAt = completedAt;
+        }
+    }
+
+    public void replaceCertificationImage(String imageUrl) {
+        this.imageUrl = imageUrl;
+    }
+
     private void validateStatusTransition(MissionStatus current, MissionStatus target) {
         if (current == target) {
             return;
