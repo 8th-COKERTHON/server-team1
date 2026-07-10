@@ -1,51 +1,46 @@
-# Hackathon Backend
+# server-team1
 
-제7회 코커톤 백엔드 템플릿. Spring Boot 4.1.0 / Java 21 / JWT 인증 / 카카오·구글 소셜로그인 / PostgreSQL.
+제8회 코커톤 백엔드. Spring Boot 4.1.0 / Java 21 / PostgreSQL.
 
 ## 빠른 실행
 
-### 방법 A. Docker Postgres (권장, 실제 개발용)
 ```bash
-cp .env.example .env           # 최초 1회
 docker compose up -d           # Postgres 기동 (호스트 5433)
-./gradlew bootRun              # 기본 프로파일 = Postgres
+./gradlew bootRun
 ```
+
+`.env` 는 **필요 없다.** `application.yml` 과 `docker-compose.yml` 의 기본값이 서로 맞춰져 있어
+클론하고 위 두 줄만 치면 바로 뜬다.
+
 호스트 포트가 5433인 이유: 로컬에 PostgreSQL 이 이미 설치돼 있어도 5432 와 충돌하지 않게 하기 위함.
 
-### 방법 B. Docker 없이 (H2 인메모리)
-```bash
-./gradlew bootRun --args='--spring.profiles.active=local'
-```
+테스트도 실제 Postgres 로 돈다. `./gradlew test` 전에 `docker compose up -d` 가 떠 있어야 한다.
 
 - Swagger UI: http://localhost:8080/swagger-ui.html
-- H2 콘솔(local): http://localhost:8080/h2-console  (JDBC URL: `jdbc:h2:mem:hackathon`)
 
-## API 요약
-
-| Method | Path | 설명 | 인증 |
-|--------|------|------|------|
-| POST | `/api/auth/signup` | 회원가입 (+토큰 발급) | X |
-| POST | `/api/auth/login` | 로그인 | X |
-| POST | `/api/auth/oauth/kakao` | 카카오 로그인 (code 전달) | X |
-| POST | `/api/auth/oauth/google` | 구글 로그인 (code 전달) | X |
-| GET | `/api/users/me` | 내 정보 조회 | O (Bearer) |
-| GET | `/api/sample/applications` | Mock 데이터 예시 | O |
-
-인증 필요한 API는 헤더에 `Authorization: Bearer <accessToken>`.
-Swagger UI 우측 상단 **Authorize** 버튼에 토큰만 넣으면 이후 요청에 자동 첨부됨.
-
-## 소셜 로그인 흐름 (프론트/백 분리)
+## 구조
 
 ```
-프론트가 카카오/구글에서 인가코드(code) 획득
-  → POST /api/auth/oauth/{kakao|google}  { "code": "...", "redirectUri": "..." }
-  → 백엔드가 code 로 제공자 API 호출 → 유저 조회/생성 → 우리 JWT 발급
+domain/
+  user/    사용자 (인증용)
+global/
+  config/  SecurityConfig, SwaggerConfig
+  jwt/     JwtProvider, JwtAuthenticationFilter
+  exception/ GlobalExceptionHandler
 ```
-`.env.example` 를 복사해 `.env` 로 만들고 카카오/구글 클라이언트 키를 채우세요.
+
+기능 도메인은 `domain/` 아래에 패키지를 하나씩 추가한다.
+**새 엔드포인트는 기본이 공개(permitAll)** 라 로그인 없이 바로 호출·시연할 수 있다.
 
 ## 환경변수
-`.env.example` 참고. 로컬은 기본값으로 동작하며 **소셜 키만** 채우면 됩니다.
-배포(prod 프로파일)는 `DB_URL / DB_USERNAME / DB_PASSWORD / JWT_SECRET` 를 환경변수로 주입.
+
+로컬은 기본값으로 동작하므로 보통 `.env` 를 만들 필요가 없다.
+다음 경우에만 `.env.example` 를 복사해 `.env` 로 만든다.
+
+- 카카오·구글 소셜로그인을 로컬에서 테스트할 때 (클라이언트 키 필요)
+- 로컬 DB 비밀번호를 기본값(`hackathon`) 과 다르게 쓸 때
+
+배포(prod 프로파일)는 `DB_URL / DB_USERNAME / DB_PASSWORD / JWT_SECRET` 를 환경변수로 주입한다.
 prod 는 `JWT_SECRET` 이 없으면 부팅에 실패한다 (개발용 기본 시크릿이 운영에 새는 것을 막기 위함).
 
 JWT 시크릿 생성 (64바이트 난수 → 128자 hex):
@@ -53,14 +48,37 @@ JWT 시크릿 생성 (64바이트 난수 → 128자 hex):
 $b = New-Object byte[] 64; [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b); -join ($b | ForEach-Object { $_.ToString('x2') })
 ```
 
-## 구조
+## 배포
+
+`main` 에 푸시하면 자동으로 배포된다.
+
 ```
-domain/
-  auth/    회원가입·로그인·소셜로그인 (controller/service/dto/oauth)
-  user/    사용자 엔티티·내 정보 조회 (controller/service/repository/entity/dto)
-  sample/  하드코딩 Mock 데이터 예시
-global/
-  config/  SecurityConfig, SwaggerConfig
-  jwt/     JwtProvider, JwtAuthenticationFilter
-  exception/ GlobalExceptionHandler
+GitHub Actions → 이미지 빌드 → Docker Hub → SSM → EC2 에서 컨테이너 교체
 ```
+
+EC2 는 SSH 인바운드를 열지 않고 SSM 으로만 명령을 받는다.
+앱 시크릿은 EC2 의 `/home/ec2-user/.env` 에만 있고 GitHub 에는 두지 않는다.
+
+필요한 GitHub Actions Secrets: `DOCKERHUB_USERNAME` `DOCKERHUB_TOKEN`
+`AWS_ACCESS_KEY_ID` `AWS_SECRET_ACCESS_KEY` `AWS_REGION` `EC2_INSTANCE_ID`
+
+## 인증 (선택 기능)
+
+로그인은 **시간이 남으면 붙이는 선택 기능**이다. 지금은 코드가 들어 있지만 언제든 통째로 뺄 수 있게 격리해 두었다.
+그래서 **새 기능 코드는 로그인에 의존하지 않는다.** 사용자를 식별해야 하면 `userId` 를 요청 파라미터로 받고,
+엔티티에서 `User` 를 참조하지 않는다.
+
+붙여서 쓸 경우 회원가입 `POST /api/auth/signup`, 로그인 `POST /api/auth/login` 이 JWT 를 발급하고,
+`GET /api/users/me` 가 토큰으로 내 정보를 돌려준다. 카카오·구글 소셜로그인도 들어 있다
+(`.env` 에 클라이언트 키 필요).
+
+### 인증 제거
+
+아래만 지우면 나머지 코드는 그대로 돈다.
+
+1. `domain/auth/` 전체, `domain/user/` 전체
+2. `global/jwt/` 전체
+3. `SecurityConfig` 에서 `[AUTH]` 주석이 붙은 줄과 `AUTHENTICATED_PATHS` 배열
+4. `SwaggerConfig` 의 `SecurityScheme` / `SecurityRequirement` 설정
+5. `build.gradle` 의 `spring-boot-starter-security`, `jjwt-*` 의존성
+6. `.env` 의 `JWT_*`, `KAKAO_*`, `GOOGLE_*`

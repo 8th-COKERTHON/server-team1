@@ -8,6 +8,24 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
+    # 테스트는 실제 PostgreSQL 로 돈다.
+    # application.yml 의 기본 DB_URL 이 localhost:5433 이므로 호스트 포트를 5433 으로 맞춘다.
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_DB: hackathon
+          POSTGRES_USER: hackathon
+          POSTGRES_PASSWORD: hackathon
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U hackathon -d hackathon"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
     steps:
       - uses: actions/checkout@v4
 
@@ -21,6 +39,5 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x ./gradlew
 
-      # 테스트는 H2(local 프로파일)로 돌아 DB 컨테이너가 필요 없음
       - name: Build & Test
         run: ./gradlew clean build

@@ -39,9 +39,8 @@ dependencies {
     runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.13.0'
     runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.13.0'
 
-    // DB: prod=PostgreSQL / local=H2
+    // DB: PostgreSQL
     runtimeOnly 'org.postgresql:postgresql'
-    runtimeOnly 'com.h2database:h2'
 
     // Lombok
     compileOnly 'org.projectlombok:lombok'
@@ -55,6 +54,6 @@ dependencies {
 
 tasks.named('test') {
     useJUnitPlatform()
-    // 테스트는 항상 H2(local 프로파일)로 실행 → Docker/Postgres 불필요
-    systemProperty 'spring.profiles.active', 'local'
+    // 테스트도 실제 PostgreSQL 로 돈다.
+    // 로컬: docker compose up -d / CI: ci.yml 의 postgres 서비스
 }
