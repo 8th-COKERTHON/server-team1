@@ -4,8 +4,10 @@ import com.example.hackathon.domain.user.dto.DetoxTimeRequest;
 import com.example.hackathon.domain.user.dto.request.UserCreateRequest;
 import com.example.hackathon.domain.user.dto.request.ActiveTeamRequest;
 import com.example.hackathon.domain.user.dto.request.UserEmailRequest;
+import com.example.hackathon.domain.user.dto.request.UserNotificationRequest;
 import com.example.hackathon.domain.user.dto.response.UserCreateResponse;
 import com.example.hackathon.domain.user.dto.response.UserHomeResponse;
+import com.example.hackathon.domain.user.dto.response.UserResponse;
 import com.example.hackathon.domain.user.service.UserService;
 
 import com.example.hackathon.global.response.ApiResponse;
@@ -81,5 +83,22 @@ public class UserController {
     ) {
         UserHomeResponse response = userService.getHomeData(userId);
         return ResponseEntity.ok(ApiResponse.ok("홈 화면 데이터 조회 성공", response));
+    }
+
+    // 8. 유저 정보 조회 (GET -> 알림 설정 화면 진입 시 이용)
+    @GetMapping("/{userId}")
+    public ResponseEntity<ApiResponse<UserResponse>> getUser(@PathVariable Long userId) {
+        UserResponse response = userService.getUser(userId);
+        return ResponseEntity.ok(ApiResponse.ok("유저 정보 조회 성공", response));
+    }
+
+    // 9. 알림 허용 여부 토글 (PATCH)
+    @PatchMapping("/{userId}/notification")
+    public ResponseEntity<ApiResponse<String>> updateNotificationSetting(
+            @PathVariable Long userId,
+            @Valid @RequestBody UserNotificationRequest request
+    ) {
+        userService.updateNotificationSetting(userId, request.enabled());
+        return ResponseEntity.ok(ApiResponse.ok("알림 설정이 수정되었습니다.", "Success"));
     }
 }

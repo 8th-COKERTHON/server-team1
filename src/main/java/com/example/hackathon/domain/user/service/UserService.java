@@ -4,6 +4,7 @@ import com.example.hackathon.domain.user.entity.User;
 import com.example.hackathon.domain.user.repository.UserRepository;
 import com.example.hackathon.domain.user.dto.response.UserCreateResponse;
 import com.example.hackathon.domain.user.dto.response.UserHomeResponse;
+import com.example.hackathon.domain.user.dto.response.UserResponse;
 import com.example.hackathon.domain.user.dto.response.UserHomeResponse.HomeMemberStatus;
 import com.example.hackathon.domain.user.dto.response.UserHomeResponse.HomePopupInfo;
 import com.example.hackathon.domain.user.entity.DailySettlementLog;
@@ -100,6 +101,20 @@ public class UserService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_ERROR_404_NOT_FOUND));
         user.updateEmail(email);
+    }
+
+    @Transactional(readOnly = true)
+    public UserResponse getUser(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_ERROR_404_NOT_FOUND));
+        return UserResponse.of(user.getId(), user.getNickname(), user.getEmail(), user.isEmailNotificationEnabled());
+    }
+
+    @Transactional
+    public void updateNotificationSetting(Long userId, boolean enabled) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_ERROR_404_NOT_FOUND));
+        user.updateEmailNotificationEnabled(enabled);
     }
 
     @Transactional
