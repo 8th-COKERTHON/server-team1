@@ -92,6 +92,20 @@ class DetoxProgressServiceTest {
     }
 
     @Test
+    void detoxTimeNotConfiguredIsRejected() {
+        User userWithoutDetoxTime = user(5L, "미설정", null, null);
+        setClock(TARGET_DATE.atTime(22, 10));
+        when(userRepository.findByDeviceId(DEVICE_ID)).thenReturn(Optional.of(userWithoutDetoxTime));
+
+        assertThatThrownBy(() -> service.getProgress(DEVICE_ID))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage(ErrorCode.MISSION_ERROR_400_DETOX_TIME_NOT_SET.getMessage())
+                .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.MISSION_ERROR_400_DETOX_TIME_NOT_SET);
+        verifyNoInteractions(userMissionLogRepository, teamMemberRepository);
+    }
+
+    @Test
     void beforeStartAndAtEndAreNotInProgress() {
         prepare(TARGET_DATE.atTime(21, 59), TARGET_DATE, missionLog);
         DetoxProgressResponse beforeStart = service.getProgress(DEVICE_ID);
