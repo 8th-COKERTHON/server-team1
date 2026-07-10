@@ -17,6 +17,6 @@ final class MissionTargetDateResolver {
         LocalDateTime yesterdayDeadline = LocalDateTime
                 .of(today.minusDays(1), user.getDetoxStartTime())
                 .plusMinutes(DEADLINE_MINUTES);
-        return now.isBefore(yesterdayDeadline) ? today.minusDays(1) : today;
+        return now.isAfter(yesterdayDeadline) ? today : today.minusDays(1);
     }
 }
