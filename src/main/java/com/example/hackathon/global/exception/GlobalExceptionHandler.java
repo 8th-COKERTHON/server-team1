@@ -4,10 +4,13 @@ import com.example.hackathon.global.response.ErrorResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.LinkedHashMap;
@@ -58,6 +61,38 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(code.getStatus())
                 .body(ErrorResponse.of(code, code.getMessage() + ": " + e.getMethod(),
                         request.getRequestURI(), Map.of()));
+    }
+
+    /**
+     * 필수 요청 헤더 누락. 예: 미션 API 에 X-Device-Id 를 빠뜨림.
+     * 클라이언트 잘못이므로 400. 잡지 않으면 catch-all 이 500 으로 만든다.
+     */
+    @ExceptionHandler(MissingRequestHeaderException.class)
+    public ResponseEntity<ErrorResponse> handleMissingHeader(MissingRequestHeaderException e,
+                                                             HttpServletRequest request) {
+        ErrorCode code = ErrorCode.COMMON_ERROR_400_INVALID_INPUT;
+        return ResponseEntity.status(code.getStatus())
+                .body(ErrorResponse.of(code, "필수 요청 헤더가 없습니다.", request.getRequestURI(),
+                        Map.of(e.getHeaderName(), "필수 헤더입니다.")));
+    }
+
+    /** 요청 본문을 읽지 못했다. 깨진 JSON, 빈 body, 잘못된 타입 등. 클라이언트 잘못이므로 400. */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleUnreadableBody(HttpMessageNotReadableException e,
+                                                              HttpServletRequest request) {
+        ErrorCode code = ErrorCode.COMMON_ERROR_400_INVALID_INPUT;
+        return ResponseEntity.status(code.getStatus())
+                .body(ErrorResponse.of(code, "요청 본문을 읽을 수 없습니다.", request.getRequestURI(), Map.of()));
+    }
+
+    /** 경로/쿼리 파라미터 타입 불일치. 예: Long 자리에 문자열. 클라이언트 잘못이므로 400. */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ErrorResponse> handleTypeMismatch(MethodArgumentTypeMismatchException e,
+                                                            HttpServletRequest request) {
+        ErrorCode code = ErrorCode.COMMON_ERROR_400_INVALID_INPUT;
+        return ResponseEntity.status(code.getStatus())
+                .body(ErrorResponse.of(code, code.getMessage(), request.getRequestURI(),
+                        Map.of(e.getName(), "타입이 올바르지 않습니다.")));
     }
 
     /**
