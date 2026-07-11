@@ -43,7 +43,8 @@ public class MissionService {
 
     @Transactional
     public MissionTodayResponse getOrCreateTodayMission(String deviceId) {
-        return MissionTodayResponse.from(getOrCreateTodayMissionLog(deviceId, LocalDateTime.now(clock)));
+        LocalDateTime now = LocalDateTime.now(clock);
+        return MissionTodayResponse.from(getOrCreateTodayMissionLog(deviceId, now), now);
     }
 
     private UserMissionLog getOrCreateTodayMissionLog(String deviceId, LocalDateTime nowTime) {
@@ -108,7 +109,7 @@ public class MissionService {
         long remainingSeconds = calculateRemainingSeconds(log, now);
 
         // popupRequired 판단 조건
-        boolean popupRequired = isPopupRequired(log, now);
+        boolean popupRequired = log.isPopupRequired(now);
 
         return MissionTodayStatusResponse.of(log, popupRequired, remainingSeconds, expired);
     }
@@ -134,7 +135,7 @@ public class MissionService {
         userMissionLogRepository.save(log);
 
         long remainingSeconds = calculateRemainingSeconds(log, now);
-        boolean popupRequired = isPopupRequired(log, now);
+        boolean popupRequired = log.isPopupRequired(now);
 
         return MissionPopupResponse.of(log, remainingSeconds, popupRequired);
     }
@@ -260,11 +261,5 @@ public class MissionService {
 
     private long calculateRemainingSeconds(UserMissionLog log, LocalDateTime now) {
         return Math.max(Duration.between(now, log.getDeadlineAt()).getSeconds(), 0);
-    }
-
-    private boolean isPopupRequired(UserMissionLog log, LocalDateTime now) {
-        return !now.isBefore(log.getAssignedAt())
-                && now.isBefore(log.getDeadlineAt())
-                && (log.getStatus() == MissionStatus.ASSIGNED || log.getStatus() == MissionStatus.CONFIRMED);
     }
 }
