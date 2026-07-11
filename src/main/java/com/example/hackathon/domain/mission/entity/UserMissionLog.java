@@ -141,4 +141,10 @@ public class UserMissionLog {
             com.example.hackathon.global.exception.ErrorCode.MISSION_ERROR_400_INVALID_TRANSITION
         );
     }
+
+    public boolean isPopupRequired(LocalDateTime now) {
+        return !now.isBefore(this.assignedAt)
+                && now.isBefore(this.deadlineAt)
+                && (this.status == MissionStatus.ASSIGNED || this.status == MissionStatus.CONFIRMED);
+    }
 }
